@@ -1,0 +1,522 @@
+---
+title: "Multiomics TB biomarker discovery project"
+author: "Zaynab Mousavian"
+date: "March 1, 2026"
+output:
+  html_document: default
+  pdf_document: default
+subtitle: Making Tables
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+# Load R packages
+
+```{r}
+library(limma)
+library(ggplot2)
+library(tidyverse)
+library(ggrepel)
+library(ComplexHeatmap)
+library(circlize)
+library(dplyr)
+library(grid)
+library(ggplot2)
+library(tidyverse)
+library(reshape2)
+library(ggpubr)
+library(caret)
+library(randomForestSRC)
+library(pROC)
+library(glmnet)
+library(Boruta)
+library(doParallel)
+library(patchwork)
+library(corto)
+library(ggplot2)
+library(tidyverse)
+library(reshape2)
+library(ggpubr)
+library(caret)
+library(ggforce)   
+library(ggh4x)
+library(gridGraphics)
+library(cowplot)
+library(Hmisc)
+library(readxl)
+library(caret)
+library(pROC)
+library(doParallel)
+library(foreach)
+library(dplyr)
+```
+
+
+
+# Make Table 1
+## load data
+
+```{r}
+load("../../Data/ReadyData/ReadyData_Baseline_Adult.RData")
+ClinicalData_Baseline_Adult <- ClinicalData_Baseline_Adult[match(row.names(CytokineData_Baseline_Adult_imputed),ClinicalData_Baseline_Adult$ID),]
+dim(CytokineData_Baseline_Adult)
+```
+
+## Age
+
+```{r}
+ClinicalData_Baseline_Adult <-ClinicalData_Baseline_Adult %>%
+  mutate(SA = if_else(Study == "SA", "SA", "noSA"))
+
+age_summary <- ClinicalData_Baseline_Adult %>%
+  group_by(TB, SA) %>%
+  summarise(
+    med = median(AGE, na.rm = TRUE),
+    Q1  = quantile(AGE, 0.25, na.rm = TRUE),
+    Q3  = quantile(AGE, 0.75, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(`Median (IQR)` = paste0(med, " (", Q1, "–", Q3, ")"))
+
+# Create total by collapsing over site
+age_total <- ClinicalData_Baseline_Adult %>%
+  group_by(TB) %>%      # only TB groups, ignore site
+  summarise(
+    med = median(AGE, na.rm = TRUE),
+    Q1  = quantile(AGE, 0.25, na.rm = TRUE),
+    Q3  = quantile(AGE, 0.75, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    site = "Total",
+    `Median (IQR)` = paste0(med, " (", Q1, "–", Q3, ")")
+  )
+```
+
+## Sex
+```{r}
+female_counts <- ClinicalData_Baseline_Adult %>%
+  filter(Sex == "F") %>%
+  group_by(TB, SA) %>%
+  summarise(N = n(), .groups = "drop")
+
+tb_totals <- ClinicalData_Baseline_Adult %>%
+  filter(Sex == "F") %>%
+  group_by(TB) %>%
+  summarise(Total = n(), .groups = "drop")
+
+table_data <- female_counts %>%
+  left_join(tb_totals, by = "TB") %>%
+  mutate(Percent = paste0(N, " (", round(N / Total * 100, 1), "%)"))
+
+final_table <- data.frame(
+  TB_SA = table_data$Percent[table_data$TB=="Yes" & table_data$SA=="SA"],
+  TB_noSA = table_data$Percent[table_data$TB=="Yes" & table_data$SA=="noSA"],
+  TB_Total = table_data$Percent[table_data$TB=="Yes" & table_data$SA %in% c("SA","noSA")] %>% sum(., na.rm = TRUE),
+  noTB_SA = table_data$Percent[table_data$TB=="No" & table_data$SA=="SA"],
+  noTB_noSA = table_data$Percent[table_data$TB=="No" & table_data$SA=="noSA"],
+  noTB_Total = table_data$Percent[table_data$TB=="No" & table_data$SA %in% c("SA","noSA")] %>% sum(., na.rm = TRUE)
+)
+```
+
+## HIV
+
+```{r}
+HIV_counts <- ClinicalData_Baseline_Adult %>%
+  filter(HIV=="Positive") %>%
+  group_by(TB, SA) %>%
+  summarise(N = n(), .groups = "drop")
+
+tb_totals <- ClinicalData_Baseline_Adult %>%
+  filter(HIV=="Positive") %>%
+  group_by(TB) %>%
+  summarise(Total = n(), .groups = "drop")
+
+table_data <- female_counts %>%
+  left_join(tb_totals, by = "TB") %>%
+  mutate(Percent = paste0(N, " (", round(N / Total * 100, 1), "%)"))
+
+final_table <- data.frame(
+  TB_SA = table_data$Percent[table_data$TB=="Yes" & table_data$SA=="SA"],
+  TB_noSA = table_data$Percent[table_data$TB=="Yes" & table_data$SA=="noSA"],
+  TB_Total = table_data$Percent[table_data$TB=="Yes" & table_data$SA %in% c("SA","noSA")] %>% sum(., na.rm = TRUE),
+  noTB_SA = table_data$Percent[table_data$TB=="No" & table_data$SA=="SA"],
+  noTB_noSA = table_data$Percent[table_data$TB=="No" & table_data$SA=="noSA"],
+  noTB_Total = table_data$Percent[table_data$TB=="No" & table_data$SA %in% c("SA","noSA")] %>% sum(., na.rm = TRUE)
+)
+```
+
+## CXray
+
+```{r}
+HIV_counts <- ClinicalData_Baseline_Adult %>%
+  filter(cxray=="CAVITATION") %>%
+  group_by(TB, SA) %>%
+  summarise(N = n(), .groups = "drop")
+
+tb_totals <- ClinicalData_Baseline_Adult %>%
+  filter(cxray=="CAVITATION") %>%
+  group_by(TB) %>%
+  summarise(Total = n(), .groups = "drop")
+
+
+HIV_counts <- ClinicalData_Baseline_Adult %>%
+  filter(Speciation.Results=="DETECTED") %>%
+  group_by(TB, SA) %>%
+  summarise(N = n(), .groups = "drop")
+
+tb_totals <- ClinicalData_Baseline_Adult %>%
+  filter(Speciation.Results=="DETECTED") %>%
+  group_by(TB) %>%
+  summarise(Total = n(), .groups = "drop")
+
+HIV_counts <- ClinicalData_Baseline_Adult %>%
+  filter(Sputum.Results=="Positive") %>%
+  group_by(TB, SA) %>%
+  summarise(N = n(), .groups = "drop")
+
+tb_totals <- ClinicalData_Baseline_Adult %>%
+  filter(Sputum.Results=="Positive") %>%
+  group_by(TB) %>%
+  summarise(Total = n(), .groups = "drop")
+
+HIV_counts <- ClinicalData_Baseline_Adult %>%
+  filter(Sputum.smear==2) %>%
+  group_by(TB, SA) %>%
+  summarise(N = n(), .groups = "drop")
+
+tb_totals <- ClinicalData_Baseline_Adult %>%
+  filter(Sputum.smear==2) %>%
+  group_by(TB) %>%
+  summarise(Total = n(), .groups = "drop")
+```
+
+## Symptoms 
+
+```{r}
+diagnosis <- read_excel("../../Data/ORD samples with diagnoses .xlsx")
+SA_symptoms <- read_excel("../../Data/2025-03-03_PotPrev_Emory_Data.xlsx")
+GWAS_symptoms <- read_excel("../../Data/TBGWAS_ControlSamples_30Nov2023.xlsx")
+SA_symptoms$study_id <- paste0("SA",SA_symptoms$study_id)
+GWAS_symptoms$`subjid without dash` <- paste0("TBG",GWAS_symptoms$`subjid without dash`)
+samples <- ClinicalData_Baseline_Adult%>%filter(TB=="No")%>%select(ID)%>%unlist()
+
+df1 <- SA_symptoms %>%
+  filter(study_id %in% samples)
+
+symptoms1 <- c("Cough","Fever...24", "Loss of weight","Night sweats")
+
+sa_summary <- df1 %>%
+  select(all_of(symptoms1)) %>%
+  pivot_longer(everything(),
+               names_to = "Symptom",
+               values_to = "Response") %>%
+  filter(!is.na(Response)) %>%
+  group_by(Symptom) %>%
+  summarise(
+    n1 = sum(Response == "Yes"),
+    N1 = n(),
+    .groups = "drop"
+  )
+sa_summary
+
+df2 <- GWAS_symptoms %>%
+  filter(`subjid without dash` %in% samples)
+
+symptoms2 <- c("a1_cough_c_bl","a1_fever_c_bl","a1_weightloss_c_bl",
+               "a1_nightsweats_c_bl")
+
+gwas_summary <- df2 %>%
+  select(all_of(symptoms2)) %>%
+  pivot_longer(everything(),
+               names_to = "Symptom",
+               values_to = "Response") %>%
+  filter(!is.na(Response)) %>%
+  group_by(Symptom) %>%
+  summarise(
+    n2 = sum(Response == "1"),
+    N2 = n(),
+    .groups = "drop"
+  )
+gwas_summary
+
+gwas_summary$Symptom <- c("Cough","Fever...24",
+                          "Loss of weight","Night sweats")
+
+### Total
+final_table <- sa_summary %>%
+  inner_join(gwas_summary, by = "Symptom") %>%
+  mutate(
+    n_total = n1 + n2,
+    N_total = N1 + N2,
+    percent = round(n_total / N_total * 100, 1),
+    `n (%)` = paste0(n_total, " (", percent, "%)")
+  ) %>%
+  select(Symptom, `n (%)`)
+
+final_table
+```
+
+
+
+# Load metabolite, cytokine and clinical data 
+
+```{r}
+load("../../Data/ReadyData/ReadyData_Baseline_Adult.RData")
+load("../../Data/ReadyData/ReadyData_Baseline_Adult_TreatmentFollowUp.RData")
+MetaboData_Baseline_Adult <- log2(MetaboData_Baseline_Adult+1)%>%as.data.frame()
+MetaboData_Baseline_Adult_TreatmentFollowUp <- log2(MetaboData_Baseline_Adult_TreatmentFollowUp+1)%>%as.data.frame()
+```
+
+# Make train and test data  
+
+
+```{r message=FALSE, warning=FALSE}
+ClinicalData_Baseline_Adult$Group <- cbind(paste0(ClinicalData_Baseline_Adult$TB,",",ClinicalData_Baseline_Adult$HIV))
+
+set.seed(123) 
+test_percentage <- 0.3 
+
+test_indices <- createDataPartition(ClinicalData_Baseline_Adult$Group, p = test_percentage, list = FALSE)
+
+sampleData_train <- ClinicalData_Baseline_Adult[-test_indices, ]
+sampleData_test <- ClinicalData_Baseline_Adult[test_indices, ]
+
+
+removed_samles_train <- which(!sampleData_train$ID%in%row.names(CytokineData_Baseline_Adult))
+sampleData_train <- sampleData_train[-removed_samles_train,]
+removed_samles_test <- which(!sampleData_test$ID%in%row.names(CytokineData_Baseline_Adult))
+sampleData_test <- sampleData_test[-removed_samles_test,]
+
+table(sampleData_train$TB,sampleData_train$HIV)
+table(sampleData_test$TB,sampleData_test$HIV)
+
+metaboData.train <- MetaboData_Baseline_Adult[sampleData_train$ID,]
+cytokineData.train <- CytokineData_Baseline_Adult_imputed[sampleData_train$ID,]
+sampleData.train <- sampleData_train
+metaboData.test <- MetaboData_Baseline_Adult[sampleData_test$ID,]
+cytokineData.test <- CytokineData_Baseline_Adult_imputed[sampleData_test$ID,]
+sampleData.test <- sampleData_test
+
+
+metaboData.train <- as.data.frame(metaboData.train)
+cytokineData.train <- as.data.frame(cytokineData.train)
+
+sampleData_test_HIVpos <- sampleData_test%>%
+  filter(HIV=="Positive")
+sampleData_test_HIVneg <- sampleData_test%>%
+  filter(HIV=="Negative")
+sampleData_test_noTBSA <- sampleData_test%>%
+  filter(TB == "Yes" | (TB == "No" & Study == "SA"))
+sampleData_test_noTBGWAS <- sampleData_test%>%
+  filter(TB == "Yes" | (TB == "No" & Study == "TBGWAS"))
+
+metaboData.test.HIVpos <- metaboData.test[sampleData_test_HIVpos$ID,]
+cytokineData.test.HIVpos <- cytokineData.test[sampleData_test_HIVpos$ID,]
+sampleData.test.HIVpos <- sampleData_test_HIVpos
+
+metaboData.test.HIVneg <- metaboData.test[sampleData_test_HIVneg$ID,]
+cytokineData.test.HIVneg <- cytokineData.test[sampleData_test_HIVneg$ID,]
+sampleData.test.HIVneg <- sampleData_test_HIVneg
+
+metaboData.test.noTBSA <- metaboData.test[sampleData_test_noTBSA$ID,]
+cytokineData.test.noTBSA <- cytokineData.test[sampleData_test_noTBSA$ID,]
+sampleData.test.noTBSA <- sampleData_test_noTBSA
+
+metaboData.test.noTBGWAS <- metaboData.test[sampleData_test_noTBGWAS$ID,]
+cytokineData.test.noTBGWAS <- cytokineData.test[sampleData_test_noTBGWAS$ID,]
+sampleData.test.noTBGWAS <- sampleData_test_noTBGWAS
+```
+
+# Make a combined data including metabolites and cytokine for feature selection 
+
+```{r}
+combinedData.train <- cbind(metaboData.train,cytokineData.train)
+combinedData.test <- cbind(metaboData.test,cytokineData.test)
+combinedData.train$Group= as.factor(sampleData.train$TB)
+combinedData.train$Group <- factor(combinedData.train$Group, levels =c("Yes","No"))
+```
+
+# Run all combinations 
+
+```{r}
+features <- c("IFN.gamma","IL.1beta","IL.22","IL.10","IFN.beta","METHIONINE",
+              "OXOPROLINE","PYRUVATE","IP.10","IL.18","TNF.alpha","IL.6","C22-5-FA")
+
+features <- c("IFN.gamma","IL.22","IL.10")
+
+all_combinations <- unlist(lapply(3:3, function(k) {
+  combn(features, k, simplify = FALSE)
+}), recursive = FALSE)
+
+length(all_combinations)
+
+cl <- makeCluster(detectCores() - 1)
+registerDoParallel(cl)
+
+if(!exists("fitControl")){
+  fitControl <- trainControl(method = "repeatedcv",
+                             number = 10,
+                             repeats = 10,
+                             classProbs = TRUE,
+                             summaryFunction = twoClassSummary,
+                             allowParallel = FALSE)   # prevent nested parallel
+}
+
+if(!exists("svmGrid")){
+  svmGrid <- expand.grid(sigma = seq(0.01, 1, length.out = 10),
+                         C = 2^seq(-5, 10, length.out = 10))
+}
+
+results_list <- foreach(i = seq_along(all_combinations),
+                        .packages = c("caret","pROC","dplyr")) %dopar% {
+
+  t0 <- Sys.time()
+  sel_feats <- all_combinations[[i]]
+
+  row_result <- data.frame(
+    combo_id = i,
+    k = length(sel_feats),
+    features = paste(sel_feats, collapse = ","),
+    auc = NA_real_,
+    auc_low = NA_real_,
+    auc_high = NA_real_,
+    sens_spec98 = NA_real_,
+    sens_spec98_low = NA_real_,
+    sens_spec98_high = NA_real_,
+    sens_spec70 = NA_real_,
+    sens_spec70_low = NA_real_,
+    sens_spec70_high = NA_real_,
+    n_train = NA_integer_,
+    n_test = NA_integer_,
+    runtime_secs = NA_real_,
+    status = NA_character_,
+    stringsAsFactors = FALSE
+  )
+
+  tryCatch({
+
+    data_train <- as.data.frame(combinedData.train[, sel_feats, drop = FALSE])
+    data_train$Class <- as.factor(gsub(" ", "", sampleData.train$TB))
+    data_train$Class <- factor(data_train$Class, levels = c("Yes","No"))
+
+    data_test <- as.data.frame(combinedData.test[, sel_feats, drop = FALSE])
+    data_test$Class <- as.factor(gsub(" ", "", sampleData.test$TB))
+    data_test$Class <- factor(data_test$Class, levels = c("Yes","No"))
+
+    row_result$n_train <- nrow(data_train)
+    row_result$n_test <- nrow(data_test)
+
+    set.seed(123)
+
+    svmTune <- train(Class ~ .,
+                     data = data_train,
+                     method = "svmRadial",
+                     preProc = c("center","scale"),
+                     metric = "ROC",
+                     tuneGrid = svmGrid,
+                     trControl = fitControl)
+
+    probs_test <- predict(svmTune, data_test, type = "prob")
+    prob_yes <- probs_test[,1]
+
+    roc_test <- roc(response = data_test$Class,
+                    predictor = prob_yes,
+                    levels = rev(levels(data_test$Class)),
+                    ci = TRUE,
+                    quiet = TRUE)
+
+    auc_val <- as.numeric(auc(roc_test))
+    auc_ci <- ci.auc(roc_test)
+
+    row_result$auc <- auc_val
+    row_result$auc_low <- as.numeric(auc_ci[1])
+    row_result$auc_high <- as.numeric(auc_ci[3])
+
+    ci_spec98 <- tryCatch({
+      ci.se(roc_test, specificities = 0.98)
+    }, error=function(e){NULL})
+
+    if(!is.null(ci_spec98)){
+      row_result$sens_spec98 <- as.numeric(ci_spec98[1,2])
+      row_result$sens_spec98_low <- as.numeric(ci_spec98[1,1])
+      row_result$sens_spec98_high <- as.numeric(ci_spec98[1,3])
+    } else {
+      sens_est <- coords(roc_test,x=0.98,input="specificity",
+                         ret="sensitivity",transpose=FALSE)
+      row_result$sens_spec98 <- as.numeric(sens_est)
+    }
+
+    ci_spec70 <- tryCatch({
+      ci.se(roc_test, specificities = 0.70)
+    }, error=function(e){NULL})
+
+    if(!is.null(ci_spec70)){
+      row_result$sens_spec70 <- as.numeric(ci_spec70[1,2])
+      row_result$sens_spec70_low <- as.numeric(ci_spec70[1,1])
+      row_result$sens_spec70_high <- as.numeric(ci_spec70[1,3])
+    } else {
+      sens_est70 <- coords(roc_test,x=0.70,input="specificity",
+                           ret="sensitivity",transpose=FALSE)
+      row_result$sens_spec70 <- as.numeric(sens_est70)
+    }
+
+    row_result$status <- "OK"
+
+  }, error=function(e){
+    row_result$status <- paste0("ERROR: ",gsub("\n"," ",conditionMessage(e)))
+  })
+
+  t1 <- Sys.time()
+  row_result$runtime_secs <- as.numeric(difftime(t1,t0,units="secs"))
+
+  row_result
+}
+
+stopCluster(cl)
+registerDoSEQ()
+
+results <- bind_rows(results_list)
+
+results_sorted <- results %>%
+  arrange(desc(auc))
+
+head(results_sorted,10)
+
+write.csv(results,"svm_combinations_results-13markers.csv",row.names=FALSE)
+write.csv(results_sorted,"svm_combinations_results_sorted-13markers.csv",row.names=FALSE)
+ 
+message("Total combinations evaluated: ", nrow(results))
+```
+
+# Make Table 2 
+
+```{r}
+df <- read.csv("svm_combinations_results-13markers.csv")
+df <- df %>%
+  arrange(desc(sens_spec98+sens_spec70+auc))
+
+
+df <- df %>%
+  mutate(across(where(is.numeric), ~ round(., 2)))
+
+last_cols <- c("sens_spec98", "sens_spec98_low","sens_spec98_high")
+
+df[last_cols] <- lapply(df[last_cols], function(x) round(x * 100, 2))
+
+last_cols <- c("sens_spec70", "sens_spec70_low","sens_spec70_high")
+
+df[last_cols] <- lapply(df[last_cols], function(x) round(x * 100, 2))
+
+df$newauc <- paste0(df$auc," (",df$auc_low,"-",df$auc_high,")")
+df$newsens <- paste0(df$sens_spec98,"% (",df$sens_spec98_low,"% - ",df$sens_spec98_high,"%)")
+df$newsens2 <- paste0(df$sens_spec70,"% (",df$sens_spec70_low,"% - ",df$sens_spec70_high,"%)")
+newdf <- df%>%select(k,features,newauc,newsens,newsens2)
+write.csv(newdf, "svm_combinations_results_sorted-13markers.csv", row.names = FALSE)
+```
+
