@@ -681,7 +681,7 @@ boxplot_func <- function(data, xaxis, yaxis, group){
 }
 ```
 # Which data? {.tabset}
-## Data at baseline (only adults) - PCA Metabolites
+## PCA Metabolites
 
 ### Load data
 
@@ -704,7 +704,7 @@ Fig1_a_pca <- PCAplot(pca.result, ClinicalData_Baseline_Adult)
 ```
 
 
-## Data at baseline (only adults) - PCA Cyotkines
+## PCA Cyotkines
 
 ### Load data
 
@@ -725,7 +725,7 @@ Fig1_b_pca <- PCAplot(pca.result, ClinicalData_Baseline_Adult)
 ```
 
 
-## Data at baseline (only adults) - DE Metabolites
+## DE Metabolites
 
 ### Load data
 
@@ -821,7 +821,7 @@ Fig1_a_heatmap <- grid.grabExpr(draw(myHeatmap, newpage = FALSE))
 ```
 
 
-## Data at baseline (only adults) - DE Cytokines
+## DE Cytokines
 
 ### Load data
 
@@ -931,7 +931,7 @@ dev.off()
 
 
 
-## Data at baseline (only adults) - Multiomics biomarker
+## Multiomics biomarker for TB diagnosis
 ### Load metabolite, cytokine and clinical data 
 
 ```{r}
@@ -1056,820 +1056,7 @@ saveRDS(selected_combined_SRC_top7, file="../Results/randomforestSRC/selectedCom
 combined_boruta <- readRDS("../Results/randomforestSRC/selectedCombined_baseline_adult.rds")
 ```
 
-### Selected cytokines from randomforestSRC
-
-#### Make data ready for SVM
-
-```{r message=FALSE, warning=FALSE}
-selected_cytokines <-c("IFN.gamma" ,"IL.1beta" , "IL.22"   ,  "IL.10"   ,  "IFN.beta")
-selected_cytokines
-
-data <- as.data.frame(cytokineData.train[,selected_cytokines ,drop=FALSE])
-data$Class= as.factor(gsub(" ","",sampleData.train$TB))
-data$Class <- factor(data$Class, levels =c("Yes","No"))
-
-data_test <- as.data.frame(cytokineData.test[,selected_cytokines,drop=FALSE])
-data_test$Class = as.factor(gsub(" ","",sampleData.test$TB))
-data_test$Class <- factor(data_test$Class, levels =c("Yes","No"))
-
-data_test_HIVpos <- as.data.frame(cytokineData.test.HIVpos[,selected_cytokines,drop=FALSE])
-data_test_HIVpos$Class = as.factor(gsub(" ","",sampleData.test.HIVpos$TB))
-data_test_HIVpos$Class <- factor(data_test_HIVpos$Class, levels =c("Yes","No"))
-
-data_test_HIVneg <- as.data.frame(cytokineData.test.HIVneg[,selected_cytokines,drop=FALSE])
-data_test_HIVneg$Class = as.factor(gsub(" ","",sampleData.test.HIVneg$TB))
-data_test_HIVneg$Class <- factor(data_test_HIVneg$Class, levels =c("Yes","No"))
-
-data_test_noTBSA <- as.data.frame(cytokineData.test.noTBSA[,selected_cytokines,drop=FALSE])
-data_test_noTBSA$Class = as.factor(gsub(" ","",sampleData.test.noTBSA$TB))
-data_test_noTBSA$Class <- factor(data_test_noTBSA$Class, levels =c("Yes","No"))
-
-data_test_noTBGWAS <- as.data.frame(cytokineData.test.noTBGWAS[,selected_cytokines,drop=FALSE])
-data_test_noTBGWAS$Class = as.factor(gsub(" ","",sampleData.test.noTBGWAS$TB))
-data_test_noTBGWAS$Class <- factor(data_test_noTBGWAS$Class, levels =c("Yes","No"))
-```
-
-#### Train SVM model
-
-```{r}
-set.seed(123)
-fitControl <- trainControl(method = "repeatedcv",
-                           number = 10,
-                           repeats = 10,
-                           classProbs = TRUE,
-                           summaryFunction = twoClassSummary)  
-
-svmGrid <- expand.grid(sigma = seq(0.01, 1, length.out = 10),
-                       C = 2^seq(-5, 10, length.out = 10))
-
-cl <- makeCluster(detectCores() - 1)
-registerDoParallel(cl)
-
-svmTune <- train(Class ~ ., data = data, 
-                 method = "svmRadial",  
-                 preProc = c("center", "scale"),
-                 metric = "ROC",
-                 tuneGrid = svmGrid,
-                 trControl = fitControl)
-
-stopCluster(cl)
-```
-
-#### Test and ROC {.tabset}
-##### Train data
-###### Test SVM 
-
-```{r}
-pred_cytokine_train <- predict(svmTune, data)
-prob_cytokine_train <- predict(svmTune, data, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data$Class, 
-            predictor = prob_cytokine_train[,1], 
-            levels = rev(levels(data$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_cytokine_train <- roc0
-```
-
-
-##### Entire test data
-###### Test SVM 
-
-```{r}
-pred_cytokine_test <- predict(svmTune, data_test)
-prob_cytokine_test <- predict(svmTune, data_test, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test$Class, 
-            predictor = prob_cytokine_test[,1], 
-            levels = rev(levels(data_test$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-
-roc_cytokine_test <- roc0
-```
-
-
-
-##### Entire test data (only HIV pos)
-###### Test SVM svmTune 
-
-```{r}
-pred_cytokine_test_HIVpos <- predict(svmTune, data_test_HIVpos)
-prob_cytokine_test_HIVpos <- predict(svmTune, data_test_HIVpos, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test_HIVpos$Class, 
-            predictor = prob_cytokine_test_HIVpos[,1], 
-            levels = rev(levels(data_test_HIVpos$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_cytokine_test_HIVpos <- roc0
-```
-
-
-
-
-
-
-
-
-
-
-##### Entire test data (only HIV neg)
-###### Test SVM svmTune 
-
-```{r}
-pred_cytokine_test_HIVneg <- predict(svmTune, data_test_HIVneg)
-prob_cytokine_test_HIVneg <- predict(svmTune, data_test_HIVneg, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test_HIVneg$Class, 
-            predictor = prob_cytokine_test_HIVneg[,1], 
-            levels = rev(levels(data_test_HIVneg$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_cytokine_test_HIVneg <- roc0
-```
-
-
-
-
-
-
-
-
-
-
-##### Entire test data (only no TB SA)
-###### Test SVM
-
-```{r}
-pred_cytokine_test_noTBSA <- predict(svmTune, data_test_noTBSA)
-prob_cytokine_test_noTBSA <- predict(svmTune, data_test_noTBSA, type="prob")
-```
-
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test_noTBSA$Class,
-            predictor = prob_cytokine_test_noTBSA[,1],
-            levels = rev(levels(data_test_noTBSA$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-roc_cytokine_test_noTBSA <- roc0
-```
-
-
-
-##### Entire test data (only no TB TBGWAS)
-###### Test SVM
-
-```{r}
-pred_cytokine_test_noTBGWAS <- predict(svmTune, data_test_noTBGWAS)
-prob_cytokine_test_noTBGWAS <- predict(svmTune, data_test_noTBGWAS, type="prob")
-```
-
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test_noTBGWAS$Class,
-            predictor = prob_cytokine_test_noTBGWAS[,1],
-            levels = rev(levels(data_test_noTBGWAS$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_cytokine_test_noTBGWAS <- roc0
-```
-
-
-
-##### Both train and test
-
-```{r}
-bothrocPlot_func(roc_cytokine_train,roc_cytokine_test)
-```
-
-##### Both train and test and both HIV pos and HIV neg
-
-```{r}
-fourrocPlot_func(roc_cytokine_train,roc_cytokine_test,roc_cytokine_test_HIVpos,roc_cytokine_test_HIVneg)
-```
-
-##### Both train and test and both no TB from SA and TBGWAS
-
-```{r}
-fourrocPlot_func_2(roc_cytokine_train,roc_cytokine_test,roc_cytokine_test_noTBSA,roc_cytokine_test_noTBGWAS)
-```
-
-
-### Selected metabolites from randomforestSRC
-
-#### Make data ready for SVM
-
-```{r message=FALSE, warning=FALSE}
-selected_metabols <- c("METHIONINE", "OXOPROLINE")
-selected_metabols
-
-data <-as.data.frame(metaboData.train[,selected_metabols,drop=FALSE])
-data$Class = as.factor(gsub(" ","",sampleData.train$TB))
-data$Class <- factor(data$Class, levels =c("Yes","No"))
-
-data_test <- as.data.frame(metaboData.test[,selected_metabols,drop=FALSE])
-data_test$Class = as.factor(gsub(" ","",sampleData.test$TB))
-data_test$Class <- factor(data_test$Class, levels =c("Yes","No"))
-
-data_test_HIVpos <- as.data.frame(metaboData.test.HIVpos[,selected_metabols,drop=FALSE])
-data_test_HIVpos$Class = as.factor(gsub(" ","",sampleData.test.HIVpos$TB))
-data_test_HIVpos$Class <- factor(data_test_HIVpos$Class, levels =c("Yes","No"))
-
-data_test_HIVneg <- as.data.frame(metaboData.test.HIVneg[,selected_metabols,drop=FALSE])
-data_test_HIVneg$Class = as.factor(gsub(" ","",sampleData.test.HIVneg$TB))
-data_test_HIVneg$Class <- factor(data_test_HIVneg$Class, levels =c("Yes","No"))
-
-data_test_noTBSA <- as.data.frame(metaboData.test.noTBSA[,selected_metabols,drop=FALSE])
-data_test_noTBSA$Class = as.factor(gsub(" ","",sampleData.test.noTBSA$TB))
-data_test_noTBSA$Class <- factor(data_test_noTBSA$Class, levels =c("Yes","No"))
-
-data_test_noTBGWAS <- as.data.frame(metaboData.test.noTBGWAS[,selected_metabols,drop=FALSE])
-data_test_noTBGWAS$Class = as.factor(gsub(" ","",sampleData.test.noTBGWAS$TB))
-data_test_noTBGWAS$Class <- factor(data_test_noTBGWAS$Class, levels =c("Yes","No"))
-```
-
-
-#### Train SVM model
-
-```{r}
-set.seed(123)
-fitControl <- trainControl(method = "repeatedcv",
-                           number = 10,
-                           repeats = 10,
-                           classProbs = TRUE,
-                           summaryFunction = twoClassSummary)  
-
-svmGrid <- expand.grid(sigma = seq(0.01, 1, length.out = 10),
-                       C = 2^seq(-5, 10, length.out = 10))
-
-cl <- makeCluster(detectCores() - 1)
-registerDoParallel(cl)
-
-svmTune <- train(Class ~ ., data = data, 
-                 method = "svmRadial",  
-                 preProc = c("center", "scale"),
-                 metric = "ROC",
-                 tuneGrid = svmGrid,
-                 trControl = fitControl)
-
-stopCluster(cl)
-```
-
-#### Test and ROC {.tabset}
-##### Train data
-###### Test SVM 
-
-```{r}
-pred_metabol_train <- predict(svmTune, data)
-prob_metabol_train <- predict(svmTune, data, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data$Class, 
-            predictor = prob_metabol_train[,1], 
-            levels = rev(levels(data$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-
-roc_metabol_train <- roc0
-```
-
-
-##### Entire test data
-###### Test SVM 
-
-```{r}
-pred_metabol_test <- predict(svmTune, data_test)
-prob_metabol_test <- predict(svmTune, data_test, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test$Class, 
-            predictor = prob_metabol_test[,1], 
-            levels = rev(levels(data_test$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_metabol_test <- roc0
-```
-
-
-
-##### Entire test data (only HIV pos)
-###### Test SVM svmTune 
-
-```{r}
-pred_metabol_test_HIVpos <- predict(svmTune, data_test_HIVpos)
-prob_metabol_test_HIVpos <- predict(svmTune, data_test_HIVpos, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test_HIVpos$Class, 
-            predictor = prob_metabol_test_HIVpos[,1], 
-            levels = rev(levels(data_test_HIVpos$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_metabol_test_HIVpos <- roc0
-```
-
-
-
-
-
-
-
-
-
-
-##### Entire test data (only HIV neg)
-###### Test SVM svmTune 
-
-```{r}
-pred_metabol_test_HIVneg <- predict(svmTune, data_test_HIVneg)
-prob_metabol_test_HIVneg <- predict(svmTune, data_test_HIVneg, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test_HIVneg$Class, 
-            predictor = prob_metabol_test_HIVneg[,1], 
-            levels = rev(levels(data_test_HIVneg$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_metabol_test_HIVneg <- roc0
-```
-
-
-
-
-
-
-
-
-
-
-##### Entire test data (only no TB SA)
-###### Test SVM model
-
-```{r}
-pred_metabol_test_noTBSA <- predict(svmTune, data_test_noTBSA)
-prob_metabol_test_noTBSA <- predict(svmTune, data_test_noTBSA, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test_noTBSA$Class, 
-            predictor = prob_metabol_test_noTBSA[,1], 
-            levels = rev(levels(data_test_noTBSA$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_metabol_test_noTBSA <- roc0
-```
-
-
-
-
-
-
-
-
-
-
-##### Entire test data (only no TB TBGWAS)
-###### Test SVM svmTune 
-
-```{r}
-pred_metabol_test_noTBGWAS <- predict(svmTune, data_test_noTBGWAS)
-prob_metabol_test_noTBGWAS <- predict(svmTune, data_test_noTBGWAS, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test_noTBGWAS$Class, 
-            predictor = prob_metabol_test_noTBGWAS[,1], 
-            levels = rev(levels(data_test_noTBGWAS$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_metabol_test_noTBGWAS <- roc0
-```
-
-
-
-
-
-
-
-
-
-
-##### Both train and test
-
-```{r}
-bothrocPlot_func(roc_metabol_train,roc_metabol_test)
-```
-
-##### Both train and test and both HIV pos and HIV neg
-
-```{r}
-fourrocPlot_func(roc_metabol_train,roc_metabol_test,roc_metabol_test_HIVpos,roc_metabol_test_HIVneg)
-```
-
-##### Both train and test and both no TB from SA and TBGWAS
-
-```{r}
-fourrocPlot_func_2(roc_metabol_train,roc_metabol_test,roc_metabol_test_noTBSA,roc_metabol_test_noTBGWAS)
-```
-
-
-
-### Combined model
-
-#### Make data ready for SVM
-
-```{r message=FALSE, warning=FALSE}
-selected_cytokines <- c("IFN.gamma" ,"IL.1beta" , "IL.22"   ,  "IL.10"   ,  "IFN.beta")
-selected_metabols <- selected_metabols <- c("METHIONINE", "OXOPROLINE")
-selected_combined <- c("IFN.gamma" ,"IL.1beta" , "IL.22"   ,  "IL.10"   ,  "IFN.beta","METHIONINE", "OXOPROLINE")
-
-data <- as.data.frame(cbind(cytokineData.train[,selected_cytokines,drop=FALSE],metaboData.train[,selected_metabols,drop=FALSE]))
-data$Class = as.factor(gsub(" ","",sampleData.train$TB))
-data$Class <- factor(data$Class, levels =c("Yes","No"))
-
-data_test <- as.data.frame(cbind(cytokineData.test[,selected_cytokines,drop=FALSE],metaboData.test[,selected_metabols,drop=FALSE]))
-data_test$Class = as.factor(gsub(" ","",sampleData.test$TB))
-data_test$Class <- factor(data_test$Class, levels =c("Yes","No"))
-
-data_test_HIVpos <- as.data.frame(cbind(cytokineData.test.HIVpos[,selected_cytokines,drop=FALSE],metaboData.test.HIVpos[,selected_metabols,drop=FALSE]))
-data_test_HIVpos$Class = as.factor(gsub(" ","",sampleData.test.HIVpos$TB))
-data_test_HIVpos$Class <- factor(data_test_HIVpos$Class, levels =c("Yes","No"))
-
-data_test_HIVneg <- as.data.frame(cbind(cytokineData.test.HIVneg[,selected_cytokines,drop=FALSE],metaboData.test.HIVneg[,selected_metabols,drop=FALSE]))
-data_test_HIVneg$Class = as.factor(gsub(" ","",sampleData.test.HIVneg$TB))
-data_test_HIVneg$Class <- factor(data_test_HIVneg$Class, levels =c("Yes","No"))
-
-data_test_noTBSA <- as.data.frame(cbind(cytokineData.test.noTBSA[,selected_cytokines,drop=FALSE],metaboData.test.noTBSA[,selected_metabols,drop=FALSE]))
-data_test_noTBSA$Class = as.factor(gsub(" ","",sampleData.test.noTBSA$TB))
-data_test_noTBSA$Class <- factor(data_test_noTBSA$Class, levels =c("Yes","No"))
-
-data_test_noTBGWAS <- as.data.frame(cbind(cytokineData.test.noTBGWAS[,selected_cytokines,drop=FALSE],metaboData.test.noTBGWAS[,selected_metabols,drop=FALSE]))
-data_test_noTBGWAS$Class = as.factor(gsub(" ","",sampleData.test.noTBGWAS$TB))
-data_test_noTBGWAS$Class <- factor(data_test_noTBGWAS$Class, levels =c("Yes","No"))
-```
-
-#### Train SVM model
-
-```{r}
-set.seed(123)
-fitControl <- trainControl(method = "repeatedcv",
-                           number = 10,
-                           repeats = 10,
-                           classProbs = TRUE,
-                           summaryFunction = twoClassSummary)  
-
-svmGrid <- expand.grid(sigma = seq(0.01, 1, length.out = 10),
-                       C = 2^seq(-5, 10, length.out = 10))
-
-cl <- makeCluster(detectCores() - 1)
-registerDoParallel(cl)
-
-svmTune <- train(Class ~ ., data = data, 
-                 method = "svmRadial",  
-                 preProc = c("center", "scale"),
-                 metric = "ROC",
-                 tuneGrid = svmGrid,
-                 trControl = fitControl)
-
-stopCluster(cl)
-```
-
-#### Test and ROC {.tabset}
-##### Train data
-###### Test SVM 
-
-```{r}
-pred_combined_train <- predict(svmTune, data)
-prob_combined_train <- predict(svmTune, data, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data$Class, 
-            predictor = prob_combined_train[,1], 
-            levels = rev(levels(data$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_combined_train <- roc0
-```
-
-
-##### Entire test data
-###### Test SVM 
-
-```{r}
-pred_combined_test <- predict(svmTune, data_test)
-prob_combined_test <- predict(svmTune, data_test, type="prob")
-
-ptb_prob <- prob_combined_test[, "Yes"]
-cor.test(ptb_prob, sampleData.test$AGE, method="spearman")
-
-df <- sampleData.test
-df$Score <- ptb_prob
-lm(Score ~ TB + AGE + Sex + HIV, data = df)
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test$Class, 
-            predictor = prob_combined_test[,1], 
-            levels = rev(levels(data_test$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-
-roc_combined_test <- roc0
-```
-
-
-
-##### Entire test data (only HIV pos)
-###### Test SVM svmTune 
-
-```{r}
-pred_combined_test_HIVpos <- predict(svmTune, data_test_HIVpos)
-prob_combined_test_HIVpos <- predict(svmTune, data_test_HIVpos, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test_HIVpos$Class, 
-            predictor = prob_combined_test_HIVpos[,1], 
-            levels = rev(levels(data_test_HIVpos$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_combined_test_HIVpos <- roc0
-```
-
-
-
-
-
-
-
-
-
-
-##### Entire test data (only HIV neg)
-###### Test SVM svmTune 
-
-```{r}
-pred_combined_test_HIVneg <- predict(svmTune, data_test_HIVneg)
-prob_combined_test_HIVneg <- predict(svmTune, data_test_HIVneg, type="prob")
-```
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test_HIVneg$Class, 
-            predictor = prob_combined_test_HIVneg[,1], 
-            levels = rev(levels(data_test_HIVneg$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_combined_test_HIVneg <- roc0
-```
-
-
-
-
-
-
-
-
-
-
-##### Entire test data (only no TB SA)
-###### Test SVM
-
-```{r}
-pred_combined_test_noTBSA <- predict(svmTune, data_test_noTBSA)
-prob_combined_test_noTBSA <- predict(svmTune, data_test_noTBSA, type="prob")
-```
-
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test_noTBSA$Class,
-            predictor = prob_combined_test_noTBSA[,1],
-            levels = rev(levels(data_test_noTBSA$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-roc_combined_test_noTBSA <- roc0
-```
-
-
-
-##### Entire test data (only no TB TBGWAS)
-###### Test SVM
-
-```{r}
-pred_combined_test_noTBGWAS <- predict(svmTune, data_test_noTBGWAS)
-prob_combined_test_noTBGWAS <- predict(svmTune, data_test_noTBGWAS, type="prob")
-```
-
-
-###### ROC curve
-
-```{r}
-roc0 <- roc(response = data_test_noTBGWAS$Class,
-            predictor = prob_combined_test_noTBGWAS[,1],
-            levels = rev(levels(data_test_noTBGWAS$Class)),ci=TRUE)
-
-ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
-dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
-                     lower = ciobj[, 1],
-                     upper = ciobj[, 3])
-
-roc_combined_test_noTBGWAS <- roc0
-```
-
-
-
-##### Both train and test
-
-```{r}
-bothrocPlot_func(roc_combined_train,roc_combined_test)
-```
-
-##### Both train and test and both HIV pos and HIV neg
-
-```{r}
-fourrocPlot_func(roc_combined_train,roc_combined_test,roc_combined_test_HIVpos,roc_combined_test_HIVneg)
-result <- threerocPlot_func_HIV(roc_combined_test,roc_combined_test_HIVpos,roc_combined_test_HIVneg)
-result$plot
-SuppFig3 <- result$plot
-```
-
-##### Both train and test and both no TB from SA and TBGWAS
-
-```{r}
-fourrocPlot_func_2(roc_combined_train,roc_combined_test,roc_combined_test_noTBSA,roc_combined_test_noTBGWAS)
-```
-
-
-
-### Genarate figures
-```{r}
-result <- threerocPlot_func(roc_combined_test, roc_cytokine_test, roc_metabol_test)
-result$plot  
-SuppFig3_total <- result$plot 
-result <- threerocPlot_func(roc_combined_test, roc_combined_test_HIVpos, roc_combined_test_HIVneg, names=c("Combined","HIV-positive","HIV-negative"),colors=c("#50b957", "red","#d89f32"))
-result$plot  
-SuppFig3_combined_HIV <- result$plot 
-result <- threerocPlot_func(roc_combined_test, roc_combined_test_noTBGWAS, roc_combined_test_noTBSA,names=c("Combined","Symptomatic contacts","Hospitalized ORD"),colors=c("#50b957", "orange","#729cda"))
-result$plot  
-SuppFig3_combined_noTB <- result$plot 
-result <- threerocPlot_func(roc_cytokine_test, roc_cytokine_test_HIVpos, roc_cytokine_test_HIVneg,names=c("Cytokine","HIV-positive","HIV-negative"),colors=c("#d84882",  "red","#d89f32"))
-result$plot  
-SuppFig3_cytokine_HIV <- result$plot 
-result <- threerocPlot_func(roc_cytokine_test, roc_cytokine_test_noTBGWAS, roc_cytokine_test_noTBSA,names=c("Cytokine","Symptomatic contacts","Hospitalized ORD"),colors=c("#d84882","orange" ,"#729cda"))
-result$plot  
-SuppFig3_cytokine_noTB <- result$plot 
-result <- threerocPlot_func(roc_metabol_test, roc_metabol_test_HIVpos, roc_metabol_test_HIVneg,
-                            names=c("Metabolite","HIV-positive","HIV-negative"),colors=c("#7b63d4", "red","#d89f32"))
-result$plot  
-SuppFig3_metabol_HIV <- result$plot 
-result <- threerocPlot_func(roc_metabol_test, roc_metabol_test_noTBGWAS, roc_metabol_test_noTBSA,names=c("Metabolite","Symptomatic contacts","Hospitalized ORD"),colors=c("#7b63d4", "orange","#729cda"))
-result$plot  
-SuppFig3_metabol_noTB <- result$plot 
-
-save(SuppFig3_metabol_noTB,SuppFig3_metabol_HIV,SuppFig3_cytokine_noTB,SuppFig3_cytokine_HIV,SuppFig3_combined_noTB,SuppFig3_combined_HIV,SuppFig3_total,file="../Results/SuppFig3.RData")
-```
-
-## Make Supplementary Figure 3
-```{r}
-l <- load("../Results/SuppFig3.RData")
-
-SuppFig3_total$layers <-SuppFig3_total$layers[!sapply(SuppFig3_total$layers, function(x) inherits(x$geom, "GeomVline"))]
-tpp_boxes <- data.frame(
-  xmin = c(0.7, 0.98),   # Specificity lower limits
-  xmax = c(1.0, 1.0),   # Specificity upper limits
-  ymin = c(0.9, 0.65),  # Sensitivity lower limits
-  ymax = c(1.0, 1),   # Sensitivity upper limits
-  label = c("Triage Test", "POC Diagnostic")
-)
-SuppFig3_total <- SuppFig3_total+ geom_rect(data = tpp_boxes,
-                                            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = label),
-                                            alpha = 0.3, inherit.aes = FALSE) +
-  scale_fill_manual(values = c("Triage Test" = "green", "POC Diagnostic" = "red"))+
-  guides(color = guide_legend(title = "TPP Boxes"))+
-  labs(title = "ROC Curves with Target Product Profile (TPP) Thresholds")+
-  theme(title = element_text(size=12))
-
-
-pdf(file="../Results/Figures/Manuscript/SuppFig3.pdf",width=10,height = 10)
-SuppFig3_total
-dev.off()
-```
-
-## Data at baseline (only adults) - 5-marker Multi-omics biomarker
+## The best combination of markers
 ### Load metabolite, cytokine and clinical data 
 
 ```{r}
@@ -2755,7 +1942,7 @@ dev.off()
 ```
 
 
-## Data at baseline (only adults) - other signatures
+## Other signatures
 ### Load metabolite, cytokine and clinical data 
 
 ```{r}
@@ -4341,7 +3528,7 @@ plot_grid(Fig3_metabol,Fig3_metabol_HIV,Fig3_metabol_noTB,ncol=3,labels=c("a","b
 dev.off()
 ```
 
-## Make Supplementary Figure 4
+## Make Supplementary Figure 3
 
 ```{r}
 pdf(file="../Results/Figures/Manuscript/SuppFig4.pdf",width=40,height = 20)
@@ -4353,7 +3540,7 @@ dev.off()
 
 
 
-## Data at baseline (only adults) - DE Metabolites for treatment response
+## DE Metabolites for treatment response at baseline
 
 ### Load metabolite, cytokine and clinical data 
 
@@ -4457,7 +3644,7 @@ volcanoPlot_func(volcanoPlot_data_MET,
   theme(legend.position = "none")
 ```
 
-## Data at baseline (only adults) - DE Cytokines for treatment response
+## DE Cytokines for treatment response at baseline
 
 ### Load metabolite, cytokine and clinical data 
 
@@ -4554,7 +3741,7 @@ volcanoPlot_func(volcanoPlot_data_CYT,
 ```
 
 
-## Data at Week 8 (only adults) - DE Metabolites for treatment response
+## DE Metabolites for treatment response at Week 8
 
 ### Load data
 
@@ -4657,7 +3844,7 @@ volcanoPlot_func(volcanoPlot_data_MET,
                  highlight_names = c("URATE","ANSERINE"))
 ```
 
-## Data at Week 8 (only adults) - DE Cytokines for treatment response
+## DE Cytokines for treatment response at Week 8
 
 ### Load data
 
@@ -4762,7 +3949,7 @@ volcanoPlot_func(volcanoPlot_data_CYT,
 
 
 
-## Data at Week 17 or 26 (only adults) - DE Metabolites for treatment response
+## DE Metabolites for treatment response at Week 17 or 26
 
 ### Load data
 
@@ -4868,7 +4055,7 @@ volcanoPlot_func(volcanoPlot_data_MET,
   theme(legend.position = "none")
 ```
 
-## Data at Week 17 or 26 (only adults) - DE Cytokines for treatment response
+## DE Cytokines for treatment response at Week 17 or 26
 
 ### Load data
 
@@ -4973,7 +4160,7 @@ volcanoPlot_func(volcanoPlot_data_CYT,
 ```
 
 
-## Make Supplementary Figure 5
+## Make Supplementary Figure 4
 
 ```{r}
 Fig <- plot_grid(
@@ -5000,7 +4187,7 @@ Fig
 dev.off()
 ```
 
-## Data at baseline (only adults) - Multi-omics biomarker for predicting treatment response including Boruta
+## Multiomics biomarker for predicting treatment response 
 ### Load metabolite, cytokine and clinical data 
 
 ```{r}
@@ -5684,7 +4871,7 @@ Fig4_metabol_HIV <- result$plot
 save(Fig4_metabol_HIV,Fig4_cytokine_HIV,Fig4_total, Fig4_combined_HIV,file="../Results/Fig4-ROCs-treatment.RData")
 ```
 
-## Data at baseline (only adults) - Enrichment of 6 markers treatment response
+## Showing multiomics biomarker over treatment 
 ### Load data
 
 ```{r}
@@ -5804,7 +4991,7 @@ dev.off()
 ```
 
 
-## Data at baseline (only adults) - Pathway enrichment 
+## Pathway enrichment 
 
 ### Ion mode {.tabset}
 
@@ -5966,7 +5153,7 @@ vennPlot
 dev.off()
 ```
 
-## Data at baseline (only adults) - correlation plot
+## Correlation plot
 
 ### Load data
 
@@ -6059,7 +5246,7 @@ dev.off()
 
 
 
-## Data at baseline (only adults) - box plot for fatty acid markers
+## Box plot for fatty acid markers
 ### Load data
 ```{r}
 load("../../Data/ReadyData/ReadyData_Baseline_Adult.RData")

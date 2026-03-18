@@ -342,7 +342,7 @@ combinedData.train$Group= as.factor(sampleData.train$TB)
 combinedData.train$Group <- factor(combinedData.train$Group, levels =c("Yes","No"))
 ```
 
-# Run all combinations 
+# Run all combinations out of 13 markers selected by randomForestSRC
 
 ```{r}
 features <- c("IFN.gamma","IL.1beta","IL.22","IL.10","IFN.beta","METHIONINE",
