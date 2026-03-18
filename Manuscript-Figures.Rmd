@@ -5124,7 +5124,6 @@ load("../Results/Boruta/selected_metabols_treatment.RData")
 #### Make data ready for SVM
 
 ```{r message=FALSE, warning=FALSE}
-# selected_combined <- read_rds(file="../Results/randomforestSRC/selectedCombined_top7_baseline_adult.rds")
 selected_cytokines <-c("IL.17A")
 selected_cytokines
 
