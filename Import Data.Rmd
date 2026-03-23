@@ -1,0 +1,165 @@
+---
+title: "Multiomics TB biomarker discovery project"
+author: "Zaynab Mousavian"
+date: "March 1, 2026"
+output:
+  html_document: default
+  pdf_document: default
+subtitle: Making Figures
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+
+# Load packages
+
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+# Function for imputing missing values with half minimum
+
+```{r}
+impute_half_min <- function(df) {
+  df_imputed <- df
+  for (col in names(df)) {
+    if (is.numeric(df[[col]])) {
+      min_val <- min(df[[col]], na.rm = TRUE)
+      half_min <- min_val / 2
+      df_imputed[[col]][is.na(df[[col]])] <- half_min
+    }
+  }
+  return(df_imputed)
+}
+```
+
+# Read Clinical data 
+
+```{r}
+ClinicalData <- read.delim("../../Data/Clinical data and cytokine data.txt")
+ClinicalData%>%dim()
+
+ClinicalData%>%select(TB,HIV,Visit.Week)%>%
+  table()
+
+ClinicalData%>%select(hilicposFileName)%>%
+  unique()%>%
+  dim()
+
+ClinicalData <- ClinicalData[which(!is.na(ClinicalData$hilicposFileName)),]
+ClinicalData[which(ClinicalData$LONGID=="10230197"),"TB"] <- "Yes"
+ClinicalData[which(ClinicalData$LONGID=="10210180"),"TB"] <- "Yes"
+
+ClinicalData$Outcome <- gsub("FAILURE","FAILED",ClinicalData$Outcome)
+
+
+ClinicalData%>%dim()
+```
+
+# Read Metabolites data 
+
+```{r}
+MetaboData <- read_excel("../../Data/ReadyData/Metabolite data.xlsx")
+MetaboData%>%select(Chemical_name)%>%
+  unique()%>%
+  dim()
+
+MetaboData%>%dim()
+
+MetaboData%>%names()
+
+MetaboData <- MetaboData[,c(3,14:673)]
+metabolites <- MetaboData$Chemical_name
+MetaboData <- MetaboData[,-1]
+MetaboData <- MetaboData%>%t()
+colnames(MetaboData) <- metabolites
+MetaboData%>%dim()
+
+MetaboData <- MetaboData[-which(!row.names(MetaboData)%in%ClinicalData$hilicposFileName),]
+ClinicalData <- ClinicalData[match(row.names(MetaboData),ClinicalData$hilicposFileName),]
+identical(row.names(MetaboData),ClinicalData$hilicposFileName)
+row.names(MetaboData) <- ClinicalData$ID
+```
+
+# Only baseline samples 
+
+```{r}
+ClinicalData_Baseline <- ClinicalData%>%filter(Visit.Week==0)
+MetaboData_Baseline <- MetaboData[ClinicalData_Baseline$ID,]
+identical(row.names(MetaboData_Baseline),ClinicalData_Baseline$ID)
+ClinicalData_Baseline%>%select(TB,HIV)%>%
+  table()
+
+# Email from Jeff (May 7) to not exclude these two samples with Yes in ON_TX (one was in TB treatment only for two days, and the other one is no TB)
+IDs_notExcluded <- c("SA10220507","SA10220071")
+IDs_Excluded <- intersect(which(ClinicalData_Baseline$ON_TX=="Yes"),which(!ClinicalData_Baseline$ID%in%IDs_notExcluded))
+ClinicalData_Baseline <- ClinicalData_Baseline[-IDs_Excluded,]
+MetaboData_Baseline <- MetaboData_Baseline[ClinicalData_Baseline$ID,]
+identical(row.names(MetaboData_Baseline),ClinicalData_Baseline$ID)
+ClinicalData_Baseline%>%select(TB,HIV)%>%
+  table()
+```
+
+# Only baseline samples with age > 18 (all 18 samples aged below 18 were no TB)
+
+```{r}
+ClinicalData_Baseline_Adult <- ClinicalData_Baseline%>%filter(AGE>=18)
+MetaboData_Baseline_Adult <- MetaboData_Baseline[ClinicalData_Baseline_Adult$ID,]
+identical(row.names(MetaboData_Baseline_Adult),ClinicalData_Baseline_Adult$ID)
+ClinicalData_Baseline_Adult%>%select(TB,HIV)%>%
+  table()
+```
+
+# Create data for TB samples over treatment
+
+```{r}
+selectedSamples <- which(ClinicalData$LONGID%in%ClinicalData_Baseline_Adult$LONGID)
+ClinicalData[selectedSamples,c("TB","Visit.Week")]%>%table()
+ClinicalData_Baseline_Adult_TreatmentFollowUp <- ClinicalData[selectedSamples,]
+ClinicalData_Baseline_Adult_TreatmentFollowUp <- ClinicalData_Baseline_Adult_TreatmentFollowUp%>%filter(TB=="Yes")
+MetaboData_Baseline_Adult_TreatmentFollowUp <- MetaboData[ClinicalData_Baseline_Adult_TreatmentFollowUp$ID,]
+```
+
+# create cytokine data
+
+```{r}
+start <- which(names(ClinicalData_Baseline_Adult)=="CytokineID_3Plate")+1
+CytokineData_Baseline_Adult <- ClinicalData_Baseline_Adult[,start:ncol(ClinicalData_Baseline_Adult)]
+CytokineData_Baseline_Adult <- log2(CytokineData_Baseline_Adult+1)
+row.names(CytokineData_Baseline_Adult) <- ClinicalData_Baseline_Adult$ID
+
+CytokineData_Baseline_Adult_TreatmentFollowUp <- ClinicalData_Baseline_Adult_TreatmentFollowUp[,start:ncol(ClinicalData_Baseline_Adult_TreatmentFollowUp)]
+CytokineData_Baseline_Adult_TreatmentFollowUp <- log2(CytokineData_Baseline_Adult_TreatmentFollowUp+1)
+row.names(CytokineData_Baseline_Adult_TreatmentFollowUp) <- ClinicalData_Baseline_Adult_TreatmentFollowUp$ID
+
+CytokineData_Baseline_Adult <- CytokineData_Baseline_Adult[-which(rowSums(is.na(CytokineData_Baseline_Adult))==28),]
+ClinicalData_Baseline_Adult_temp <- ClinicalData_Baseline_Adult[match(row.names(CytokineData_Baseline_Adult),ClinicalData_Baseline_Adult$ID),]
+
+selectedSamples <- which(ClinicalData$LONGID%in%ClinicalData_Baseline_Adult_temp$LONGID)
+ClinicalData[selectedSamples,c("TB","Visit.Week")]%>%table()
+ClinicalData_Baseline_Adult_TreatmentFollowUp_temp <- ClinicalData[selectedSamples,]
+ClinicalData_Baseline_Adult_TreatmentFollowUp_temp <- ClinicalData_Baseline_Adult_TreatmentFollowUp_temp%>%filter(TB=="Yes")
+start <- which(names(ClinicalData_Baseline_Adult_temp)=="CytokineID_3Plate")+1
+CytokineData_Baseline_Adult_TreatmentFollowUp <- ClinicalData_Baseline_Adult_TreatmentFollowUp_temp[,start:ncol(ClinicalData_Baseline_Adult_TreatmentFollowUp)]
+CytokineData_Baseline_Adult_TreatmentFollowUp <- log2(CytokineData_Baseline_Adult_TreatmentFollowUp+1)
+row.names(CytokineData_Baseline_Adult_TreatmentFollowUp) <- ClinicalData_Baseline_Adult_TreatmentFollowUp_temp$ID
+
+CytokineData_Baseline_Adult_imputed <- impute_half_min(CytokineData_Baseline_Adult)
+CytokineData_Baseline_Adult_TreatmentFollowUp_imputed <- impute_half_min(CytokineData_Baseline_Adult_TreatmentFollowUp)
+```
+
+# Save data
+
+```{r}
+save(ClinicalData_Baseline_Adult_TreatmentFollowUp,MetaboData_Baseline_Adult_TreatmentFollowUp,CytokineData_Baseline_Adult_TreatmentFollowUp,CytokineData_Baseline_Adult_TreatmentFollowUp_imputed,file="../../Data/ReadyData/ReadyData_Baseline_Adult_TreatmentFollowUp.RData")
+save(ClinicalData_Baseline_Adult,MetaboData_Baseline_Adult,CytokineData_Baseline_Adult,CytokineData_Baseline_Adult_imputed,file="../../Data/ReadyData/ReadyData_Baseline_Adult.RData")
+save(ClinicalData_Baseline,MetaboData_Baseline,file="../../Data/ReadyData/ReadyData_Baseline.RData")
+save(ClinicalData,MetaboData,file="../../Data/ReadyData/ReadyData.RData")
+```
+
