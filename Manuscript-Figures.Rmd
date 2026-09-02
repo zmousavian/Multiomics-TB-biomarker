@@ -1,7 +1,7 @@
 ---
 title: "Multiomics TB biomarker discovery project"
 author: "Zaynab Mousavian"
-date: "March 1, 2026"
+date: "September 1, 2026"
 output:
   html_document: default
   pdf_document: default
@@ -234,7 +234,7 @@ heatmapPlot_func <- function(volcanoPlot_data, ClinicalData, MetaboData,
                              up_color = "red",
                              mid_color = "white",
                              down_color = "blue",
-                             annotation_colors = c("No" = "#ca6332", "Yes" = "#3abbcc"),
+                             annotation_colors = c("No" = "#E69F00", "Yes" = "#0072B2"),
                              row_fontsize = 20,
                              col_fontsize = 20) {
   
@@ -292,7 +292,7 @@ heatmapPlot_func <- function(volcanoPlot_data, ClinicalData, MetaboData,
   annotation_colors_list <- list(
     Group = annotation_colors,               
     Sex = c("F" = "pink", "M" = "lightblue"),
-    HIV = c("Negative" = "#e24a33", "Positive" = "#9e4760")
+    HIV = c("Negative" = "#4C9F70", "Positive" = "#7A68A6")
   )
   
   
@@ -371,7 +371,7 @@ PCAplot <- function(pca.result, sampleData){
   plot <- ggplot(inputData, aes(x=PC1, y=PC2)) +
     geom_point(size=5, aes(shape=HIV, color=TB), stroke=1) +
     stat_ellipse(aes(color=TB), type="t", linetype=2) +
-    scale_color_manual(values=c("Yes"="#3abbcc","No"= "#ca6332"),labels = c("Yes"="PTB", "No"="ORD"), name="Group") +
+    scale_color_manual(values=c("Yes"="#0072B2","No"= "#E69F00"),labels = c("Yes"="PTB", "No"="ORD"), name="Group") +
     labs(
       shape = "HIV status",
       x = paste0("PC1 (", round(pca.result$importance[2,1] * 100, 1), "%)"),
@@ -397,7 +397,9 @@ PCAplot <- function(pca.result, sampleData){
 ```{r}
 threerocPlot_func <- function(roc1, roc2, roc3,
                               names = c("Combined", "Cytokine", "Metabolite"),
-                              colors = c("#7aa456", "#c65999", "#777acd")) {
+                              colors = c( "#D55E00",
+  "#009E73",
+  "#CC79A7")) {
   
   if (length(names) != 3) stop("Please provide exactly 3 names")
   if (length(colors) != 3) stop("Please provide exactly 3 colors")
@@ -440,6 +442,99 @@ threerocPlot_func <- function(roc1, roc2, roc3,
     plot = plot,
     sensitivity = setNames(list(sens1, sens2, sens3), names),
     sensitivity_triage = setNames(list(sens1_triage, sens2_triage, sens3_triage), names)
+  ))
+}
+```
+
+## Function for visualizing ROC plot for test using entire dataset and one subgroup
+
+```{r}
+tworocPlot_func <- function(roc1, roc2,
+                              names = c("Combined", "Cytokine"),
+                              colors = c("#D55E00",
+  "#009E73")) {
+  
+  if (length(names) != 2) stop("Please provide exactly 2 names")
+  if (length(colors) != 2) stop("Please provide exactly 2 colors")
+  
+  ci1 <- ci.auc(roc1)
+  ci2 <- ci.auc(roc2)
+  
+  auc1 <- sprintf("%s AUC = %.2f (%.2f–%.2f)", names[1], auc(roc1), ci1[1], ci1[3])
+  auc2 <- sprintf("%s AUC = %.2f (%.2f–%.2f)", names[2], auc(roc2), ci2[1], ci2[3])
+  
+  sens1 <- ci.coords(roc1, x = 0.98, input = "specificity", ret = "sensitivity", conf.level = 0.95)
+  sens2 <- ci.coords(roc2, x = 0.98, input = "specificity", ret = "sensitivity", conf.level = 0.95)
+  
+  sens1_triage <- ci.coords(roc1, x = 0.70, input = "specificity", ret = "sensitivity", conf.level = 0.95)
+  sens2_triage <- ci.coords(roc2, x = 0.70, input = "specificity", ret = "sensitivity", conf.level = 0.95)
+ 
+  roc_list <- setNames(
+    list(roc1, roc2),
+    c(auc1, auc2)
+  )
+  
+  plot <- ggroc(roc_list, size = 2) +   
+    theme_classic(base_size = 28) +      
+    theme(
+      legend.position = c(0.55, 0.25),
+      legend.title = element_blank(),
+      legend.text = element_text(size = 26),      
+      axis.title.x = element_text(size = 26, face="bold"), 
+      axis.title.y = element_text(size = 26, face="bold"),
+      axis.text = element_text(size = 20),        
+      plot.title = element_text(hjust = 0.5, size=26, face="bold")
+    ) +
+    scale_color_manual(values = colors)
+  
+  return(list(
+    plot = plot,
+    sensitivity = setNames(list(sens1, sens2), names),
+    sensitivity_triage = setNames(list(sens1_triage, sens2_triage), names)
+  ))
+}
+```
+
+## Function for visualizing ROC plot for one test
+
+```{r}
+onerocPlot_func <- function(roc1, roc2,
+                              names = c("Combined"),
+                              colors = c("#D55E00")) {
+  
+  if (length(names) != 1) stop("Please provide exactly one name")
+  if (length(colors) != 1) stop("Please provide exactly one color")
+  
+  ci1 <- ci.auc(roc1)
+
+  
+  auc1 <- sprintf("%s AUC = %.2f (%.2f–%.2f)", names[1], auc(roc1), ci1[1], ci1[3])
+
+  sens1 <- ci.coords(roc1, x = 0.98, input = "specificity", ret = "sensitivity", conf.level = 0.95)
+  sens1_triage <- ci.coords(roc1, x = 0.70, input = "specificity", ret = "sensitivity", conf.level = 0.95)
+ 
+  roc_list <- setNames(
+    list(roc1),
+    c(auc1)
+  )
+  
+  plot <- ggroc(roc_list, size = 2) +   
+    theme_classic(base_size = 28) +      
+    theme(
+      legend.position = c(0.55, 0.25),
+      legend.title = element_blank(),
+      legend.text = element_text(size = 26),      
+      axis.title.x = element_text(size = 26, face="bold"), 
+      axis.title.y = element_text(size = 26, face="bold"),
+      axis.text = element_text(size = 20),        
+      plot.title = element_text(hjust = 0.5, size=26, face="bold")
+    ) +
+    scale_color_manual(values = colors)
+  
+  return(list(
+    plot = plot,
+    sensitivity = setNames(list(sens1), names),
+    sensitivity_triage = setNames(list(sens1_triage), names)
   ))
 }
 ```
@@ -515,7 +610,9 @@ threerocPlot_func_HIV <- function(roc_test, roc_test_HIVpos, roc_test_HIVneg) {
       axis.title.x = element_text(size = 20),
       axis.title.y = element_text(size = 20) 
     ) +
-    scale_color_manual(values = c("#7aa456", "#D55E00", "violetred4"))
+    scale_color_manual(values = c("#D55E00",
+  "#7A68A6" ,
+"#4C9F70"))
   
   sensitivity_results <- list(
     Combined = sens_test,
@@ -650,9 +747,9 @@ boxplot_func <- function(data, xaxis, yaxis, group){
     geom_jitter(aes(color = .data[[group]]), 
                 position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75),
                 size = 2.5, alpha = 1) +
-    scale_color_manual(values = c("Yes"="#3abbcc","No"= "#ca6332"),
+    scale_color_manual(values = c("Yes"="#0072B2","No"= "#E69F00"),
                        labels = c("Yes"="PTB","No"= "ORD")) +
-    scale_fill_manual(values = c("Yes"="#3abbcc","No"= "#ca6332")) +
+    scale_fill_manual(values = c("Yes"="#0072B2","No"= "#E69F00")) +
     labs(y = expression(bold(log[2](Plasma_Concentration))), x = NULL, color = NULL) +
     guides(fill = "none") +
     theme_classic(base_size = 20) +
@@ -890,7 +987,7 @@ volcanoPlot_func_2(volcanoPlot_data_CYT,
                    thr = 0.05, thr2 = 0, 
                    label_points = FALSE,
                    xlim_range = c(-4, 4),
-                   highlight_names = c("IFN.gamma" ,"IL.1beta" , "IL.22"   ,  "IL.10"   ,  "IFN.beta"))
+                   highlight_names = c("IFN.gamma" ,"IL.1beta" , "IL.22"   ,  "IL.10"))
 ```
 
 #### Using q-value 
@@ -905,7 +1002,7 @@ Fig1_b_volcano <- volcanoPlot_func(volcanoPlot_data_CYT,
                                    thr = 0.05, thr2 = 0, 
                                    label_points = FALSE,
                                    xlim_range = c(-4, 4),
-                                   highlight_names = c("IFN.gamma" ,"IL.1beta" , "IL.22"   ,  "IL.10"   ,  "IFN.beta"))
+                                   highlight_names = c("IFN.gamma" ,"IL.1beta" , "IL.22"   ,  "IL.10" ))
 ```
 
 ### Visualizing heatmap plot 
@@ -919,8 +1016,8 @@ Fig1_b_heatmap <- grid.grabExpr(draw(myHeatmap, newpage = FALSE))
 ## Make Supplementary Figures 1 and 2
 
 ```{r}
-SuppFig1 <- plot_grid((Fig1_a_pca/Fig1_a_volcano),Fig1_a_heatmap, ncol = 2, rel_widths = c(1, 1.25))
-SuppFig2 <- plot_grid((Fig1_b_pca/Fig1_b_volcano),Fig1_b_heatmap, ncol = 2, rel_widths = c(1, 1.25))
+SuppFig1 <- plot_grid((Fig1_a_pca/Fig1_a_volcano),Fig1_a_heatmap, ncol = 2, rel_widths = c(1, 1.25),labels=c("a","b","c"),label_size = 36)
+SuppFig2 <- plot_grid((Fig1_b_pca/Fig1_b_volcano),Fig1_b_heatmap, ncol = 2, rel_widths = c(1, 1.25),labels=c("a","b","c"),label_size = 36)
 pdf(file="../Results/Figures/Manuscript/SuppFig1.pdf",height = 22,width = 32)
 plot_grid(SuppFig1,nrow=1,ncol=1,rel_heights = c(1,1))
 dev.off()
@@ -1053,17 +1150,26 @@ saveRDS(selected_combined_SRC,file="../Results/randomforestSRC/selectedCombined_
 saveRDS(selected_combined_SRC_top2, file="../Results/randomforestSRC/selectedCombined_top2_baseline_adult.rds")
 saveRDS(selected_combined_SRC_top5, file="../Results/randomforestSRC/selectedCombined_top5_baseline_adult.rds")
 saveRDS(selected_combined_SRC_top7, file="../Results/randomforestSRC/selectedCombined_top7_baseline_adult.rds")
-combined_boruta <- readRDS("../Results/randomforestSRC/selectedCombined_baseline_adult.rds")
+combined_boruta <- readRDS("Results/randomforestSRC/selectedCombined_baseline_adult.rds")
 ```
 
 ## The best combination of markers
 ### Load metabolite, cytokine and clinical data 
 
 ```{r}
+diagnosis <- read_excel("../../Data/ORD samples with diagnoses .xlsx",sheet = 2)
+pneumonia_samples <- diagnosis%>%filter(`Pneumonia part of the final diagnosis?`=="Yes")%>%select(ID)%>%unlist()
 load("../../Data/ReadyData/ReadyData_Baseline_Adult.RData")
 load("../../Data/ReadyData/ReadyData_Baseline_Adult_TreatmentFollowUp.RData")
 MetaboData_Baseline_Adult <- log2(MetaboData_Baseline_Adult+1)%>%as.data.frame()
 MetaboData_Baseline_Adult_TreatmentFollowUp <- log2(MetaboData_Baseline_Adult_TreatmentFollowUp+1)%>%as.data.frame()
+```
+
+### Save list of cytokines and metabolites
+
+```{r}
+write.csv(CytokineData_Baseline_Adult_imputed%>%names(),file="../Results/Figures/Manuscript/Cytokines.csv")
+write.csv(MetaboData_Baseline_Adult%>%names(),file="../Results/Figures/Manuscript/Metabolites.csv")
 ```
 
 ### Make train and test data  
@@ -1109,6 +1215,15 @@ sampleData_test_noTBSA <- sampleData_test%>%
 sampleData_test_noTBGWAS <- sampleData_test%>%
   filter(TB == "Yes" | (TB == "No" & Study == "TBGWAS"))
 
+sampleData_test_pneumonia <- sampleData_test%>%
+  filter(TB == "Yes" | (TB == "No" & Study == "SA" & ID%in%pneumonia_samples))
+
+sampleData_test_matchedage <- sampleData_test%>%
+  filter(AGE >= 30, AGE <= 50)
+
+sampleData_test_onlySA <- sampleData_test%>%
+  filter(Study == "SA")
+
 metaboData.test.HIVpos <- metaboData.test[sampleData_test_HIVpos$ID,]
 cytokineData.test.HIVpos <- cytokineData.test[sampleData_test_HIVpos$ID,]
 sampleData.test.HIVpos <- sampleData_test_HIVpos
@@ -1124,14 +1239,26 @@ sampleData.test.noTBSA <- sampleData_test_noTBSA
 metaboData.test.noTBGWAS <- metaboData.test[sampleData_test_noTBGWAS$ID,]
 cytokineData.test.noTBGWAS <- cytokineData.test[sampleData_test_noTBGWAS$ID,]
 sampleData.test.noTBGWAS <- sampleData_test_noTBGWAS
+
+metaboData.test.pneumonia <- metaboData.test[sampleData_test_pneumonia$ID,]
+cytokineData.test.pneumonia <- cytokineData.test[sampleData_test_pneumonia$ID,]
+sampleData.test.pneumonia <- sampleData_test_pneumonia
+
+metaboData.test.matchedage <- metaboData.test[sampleData_test_matchedage$ID,]
+cytokineData.test.matchedage <- cytokineData.test[sampleData_test_matchedage$ID,]
+sampleData.test.matchedage <- sampleData_test_matchedage
+
+metaboData.test.onlySA <- metaboData.test[sampleData_test_onlySA$ID,]
+cytokineData.test.onlySA <- cytokineData.test[sampleData_test_onlySA$ID,]
+sampleData.test.onlySA <- sampleData_test_onlySA
 ```
 
-### Selected cytokines in the 5-marker signature
+### Selected cytokines in the 6-marker signature
 
 #### Make data ready for SVM
 
 ```{r message=FALSE, warning=FALSE}
-selected_cytokines <-c("IFN.gamma" , "IL.22"   ,  "IL.10")
+selected_cytokines <-c("IFN.gamma", "IL.22", "IL.1beta", "IL.10")
 selected_cytokines
 
 data <- as.data.frame(cytokineData.train[,selected_cytokines ,drop=FALSE])
@@ -1157,6 +1284,18 @@ data_test_noTBSA$Class <- factor(data_test_noTBSA$Class, levels =c("Yes","No"))
 data_test_noTBGWAS <- as.data.frame(cytokineData.test.noTBGWAS[,selected_cytokines,drop=FALSE])
 data_test_noTBGWAS$Class = as.factor(gsub(" ","",sampleData.test.noTBGWAS$TB))
 data_test_noTBGWAS$Class <- factor(data_test_noTBGWAS$Class, levels =c("Yes","No"))
+
+data_test_pneumonia <- as.data.frame(cytokineData.test.pneumonia[,selected_cytokines,drop=FALSE])
+data_test_pneumonia$Class = as.factor(gsub(" ","",sampleData.test.pneumonia$TB))
+data_test_pneumonia$Class <- factor(data_test_pneumonia$Class, levels =c("Yes","No"))
+
+data_test_matchedage <- as.data.frame(cytokineData.test.matchedage[,selected_cytokines,drop=FALSE])
+data_test_matchedage$Class = as.factor(gsub(" ","",sampleData.test.matchedage$TB))
+data_test_matchedage$Class <- factor(data_test_matchedage$Class, levels =c("Yes","No"))
+
+data_test_onlySA <- as.data.frame(cytokineData.test.onlySA[,selected_cytokines,drop=FALSE])
+data_test_onlySA$Class = as.factor(gsub(" ","",sampleData.test.onlySA$TB))
+data_test_onlySA$Class <- factor(data_test_onlySA$Class, levels =c("Yes","No"))
 ```
 
 #### Train SVM model
@@ -1234,6 +1373,43 @@ dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
 roc_cytokine_test <- roc0
 ```
 
+###### Sensitivity
+
+```{r}
+ci_70 <- ci.se(
+  roc0,
+  specificities = 0.70,
+  conf.level = 0.95,
+  boot.n = 2000
+)
+
+sens_70 <- as.numeric(ci_70[1, 2])
+lower_70 <- as.numeric(ci_70[1, 1])
+upper_70 <- as.numeric(ci_70[1, 3])
+
+c(
+  Sensitivity = sens_70,
+  Lower_CI = lower_70,
+  Upper_CI = upper_70
+)
+
+ci_70 <- ci.se(
+  roc0,
+  specificities = 0.98,
+  conf.level = 0.95,
+  boot.n = 2000
+)
+
+sens_70 <- as.numeric(ci_70[1, 2])
+lower_70 <- as.numeric(ci_70[1, 1])
+upper_70 <- as.numeric(ci_70[1, 3])
+
+c(
+  Sensitivity = sens_70,
+  Lower_CI = lower_70,
+  Upper_CI = upper_70
+)
+```
 
 
 ##### Entire test data (only HIV pos)
@@ -1351,6 +1527,84 @@ roc_cytokine_test_noTBGWAS <- roc0
 
 
 
+##### Entire test data (only pneumonia)
+###### Test SVM
+
+```{r}
+pred_cytokine_test_pneumonia <- predict(svmTune, data_test_pneumonia)
+prob_cytokine_test_pneumonia <- predict(svmTune, data_test_pneumonia, type="prob")
+```
+
+
+###### ROC curve
+
+```{r}
+roc0 <- roc(response = data_test_pneumonia$Class,
+            predictor = prob_cytokine_test_pneumonia[,1],
+            levels = rev(levels(data_test_pneumonia$Class)),ci=TRUE)
+
+ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
+dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
+                     lower = ciobj[, 1],
+                     upper = ciobj[, 3])
+
+roc_cytokine_test_pneumonia <- roc0
+```
+
+
+
+##### Entire test data (only matched age)
+###### Test SVM
+
+```{r}
+pred_cytokine_test_matchedage <- predict(svmTune, data_test_matchedage)
+prob_cytokine_test_matchedage <- predict(svmTune, data_test_matchedage, type="prob")
+```
+
+
+###### ROC curve
+
+```{r}
+roc0 <- roc(response = data_test_matchedage$Class,
+            predictor = prob_cytokine_test_matchedage[,1],
+            levels = rev(levels(data_test_matchedage$Class)),ci=TRUE)
+
+ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
+dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
+                     lower = ciobj[, 1],
+                     upper = ciobj[, 3])
+
+roc_cytokine_test_matchedage <- roc0
+```
+
+
+
+##### Entire test data (only SA)
+###### Test SVM
+
+```{r}
+pred_cytokine_test_onlySA <- predict(svmTune, data_test_onlySA)
+prob_cytokine_test_onlySA <- predict(svmTune, data_test_onlySA, type="prob")
+```
+
+
+###### ROC curve
+
+```{r}
+roc0 <- roc(response = data_test_onlySA$Class,
+            predictor = prob_cytokine_test_onlySA[,1],
+            levels = rev(levels(data_test_onlySA$Class)),ci=TRUE)
+
+ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
+dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
+                     lower = ciobj[, 1],
+                     upper = ciobj[, 3])
+
+roc_cytokine_test_onlySA <- roc0
+```
+
+
+
 ##### Both train and test
 
 ```{r}
@@ -1370,7 +1624,9 @@ fourrocPlot_func_2(roc_cytokine_train,roc_cytokine_test,roc_cytokine_test_noTBSA
 ```
 
 
-### Selected metabolites in the 5-marker signature
+
+
+### Selected metabolites in the 6-marker signature
 
 #### Make data ready for SVM
 
@@ -1401,6 +1657,18 @@ data_test_noTBSA$Class <- factor(data_test_noTBSA$Class, levels =c("Yes","No"))
 data_test_noTBGWAS <- as.data.frame(metaboData.test.noTBGWAS[,selected_metabols,drop=FALSE])
 data_test_noTBGWAS$Class = as.factor(gsub(" ","",sampleData.test.noTBGWAS$TB))
 data_test_noTBGWAS$Class <- factor(data_test_noTBGWAS$Class, levels =c("Yes","No"))
+
+data_test_pneumonia <- as.data.frame(metaboData.test.pneumonia[,selected_metabols,drop=FALSE])
+data_test_pneumonia$Class = as.factor(gsub(" ","",sampleData.test.pneumonia$TB))
+data_test_pneumonia$Class <- factor(data_test_pneumonia$Class, levels =c("Yes","No"))
+
+data_test_matchedage <- as.data.frame(metaboData.test.matchedage[,selected_metabols,drop=FALSE])
+data_test_matchedage$Class = as.factor(gsub(" ","",sampleData.test.matchedage$TB))
+data_test_matchedage$Class <- factor(data_test_matchedage$Class, levels =c("Yes","No"))
+
+data_test_onlySA <- as.data.frame(metaboData.test.onlySA[,selected_metabols,drop=FALSE])
+data_test_onlySA$Class = as.factor(gsub(" ","",sampleData.test.onlySA$TB))
+data_test_onlySA$Class <- factor(data_test_onlySA$Class, levels =c("Yes","No"))
 ```
 
 
@@ -1479,7 +1747,26 @@ dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
 roc_metabol_test <- roc0
 ```
 
+###### Sensitivity
 
+```{r}
+ci_70 <- ci.se(
+  roc0,
+  specificities = 0.98,
+  conf.level = 0.95,
+  boot.n = 2000
+)
+
+sens_70 <- as.numeric(ci_70[1, 2])
+lower_70 <- as.numeric(ci_70[1, 1])
+upper_70 <- as.numeric(ci_70[1, 3])
+
+c(
+  Sensitivity = sens_70,
+  Lower_CI = lower_70,
+  Upper_CI = upper_70
+)
+```
 
 ##### Entire test data (only HIV pos)
 ###### Test SVM svmTune 
@@ -1609,6 +1896,102 @@ roc_metabol_test_noTBGWAS <- roc0
 
 
 
+##### Entire test data (only pneumonia)
+###### Test SVM svmTune 
+
+```{r}
+pred_metabol_test_pneumonia <- predict(svmTune, data_test_pneumonia)
+prob_metabol_test_pneumonia <- predict(svmTune, data_test_pneumonia, type="prob")
+```
+
+###### ROC curve
+
+```{r}
+roc0 <- roc(response = data_test_pneumonia$Class, 
+            predictor = prob_metabol_test_pneumonia[,1], 
+            levels = rev(levels(data_test_pneumonia$Class)),ci=TRUE)
+
+ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
+dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
+                     lower = ciobj[, 1],
+                     upper = ciobj[, 3])
+
+roc_metabol_test_pneumonia <- roc0
+```
+
+
+
+
+
+
+
+
+
+
+##### Entire test data (only matchedage)
+###### Test SVM svmTune 
+
+```{r}
+pred_metabol_test_matchedage <- predict(svmTune, data_test_matchedage)
+prob_metabol_test_matchedage <- predict(svmTune, data_test_matchedage, type="prob")
+```
+
+###### ROC curve
+
+```{r}
+roc0 <- roc(response = data_test_matchedage$Class, 
+            predictor = prob_metabol_test_matchedage[,1], 
+            levels = rev(levels(data_test_matchedage$Class)),ci=TRUE)
+
+ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
+dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
+                     lower = ciobj[, 1],
+                     upper = ciobj[, 3])
+
+roc_metabol_test_matchedage <- roc0
+```
+
+
+
+
+
+
+
+
+
+
+##### Entire test data (only SA)
+###### Test SVM svmTune 
+
+```{r}
+pred_metabol_test_onlySA <- predict(svmTune, data_test_onlySA)
+prob_metabol_test_onlySA <- predict(svmTune, data_test_onlySA, type="prob")
+```
+
+###### ROC curve
+
+```{r}
+roc0 <- roc(response = data_test_onlySA$Class, 
+            predictor = prob_metabol_test_onlySA[,1], 
+            levels = rev(levels(data_test_onlySA$Class)),ci=TRUE)
+
+ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
+dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
+                     lower = ciobj[, 1],
+                     upper = ciobj[, 3])
+
+roc_metabol_test_onlySA <- roc0
+```
+
+
+
+
+
+
+
+
+
+
 ##### Both train and test
 
 ```{r}
@@ -1634,9 +2017,9 @@ fourrocPlot_func_2(roc_metabol_train,roc_metabol_test,roc_metabol_test_noTBSA,ro
 #### Make data ready for SVM
 
 ```{r message=FALSE, warning=FALSE}
-selected_cytokines <- c("IFN.gamma" ,"IL.22"   ,  "IL.10"   )
+selected_cytokines <- c("IFN.gamma", "IL.22",  "IL.1beta", "IL.10")
 selected_metabols <- selected_metabols <- c("METHIONINE", "OXOPROLINE")
-selected_combined <- c("IFN.gamma" , "IL.22"   ,  "IL.10" ,"METHIONINE", "OXOPROLINE")
+selected_combined <- c("IFN.gamma", "IL.22",  "IL.1beta", "IL.10", "METHIONINE", "OXOPROLINE")
 
 data <- as.data.frame(cbind(cytokineData.train[,selected_cytokines,drop=FALSE],metaboData.train[,selected_metabols,drop=FALSE]))
 data$Class = as.factor(gsub(" ","",sampleData.train$TB))
@@ -1661,6 +2044,18 @@ data_test_noTBSA$Class <- factor(data_test_noTBSA$Class, levels =c("Yes","No"))
 data_test_noTBGWAS <- as.data.frame(cbind(cytokineData.test.noTBGWAS[,selected_cytokines,drop=FALSE],metaboData.test.noTBGWAS[,selected_metabols,drop=FALSE]))
 data_test_noTBGWAS$Class = as.factor(gsub(" ","",sampleData.test.noTBGWAS$TB))
 data_test_noTBGWAS$Class <- factor(data_test_noTBGWAS$Class, levels =c("Yes","No"))
+
+data_test_pneumonia <- as.data.frame(cbind(cytokineData.test.pneumonia[,selected_cytokines,drop=FALSE],metaboData.test.pneumonia[,selected_metabols,drop=FALSE]))
+data_test_pneumonia$Class = as.factor(gsub(" ","",sampleData.test.pneumonia$TB))
+data_test_pneumonia$Class <- factor(data_test_pneumonia$Class, levels =c("Yes","No"))
+
+data_test_matchedage <- as.data.frame(cbind(cytokineData.test.matchedage[,selected_cytokines,drop=FALSE],metaboData.test.matchedage[,selected_metabols,drop=FALSE]))
+data_test_matchedage$Class = as.factor(gsub(" ","",sampleData.test.matchedage$TB))
+data_test_matchedage$Class <- factor(data_test_matchedage$Class, levels =c("Yes","No"))
+
+data_test_onlySA <- as.data.frame(cbind(cytokineData.test.onlySA[,selected_cytokines,drop=FALSE],metaboData.test.onlySA[,selected_metabols,drop=FALSE]))
+data_test_onlySA$Class = as.factor(gsub(" ","",sampleData.test.onlySA$TB))
+data_test_onlySA$Class <- factor(data_test_onlySA$Class, levels =c("Yes","No"))
 ```
 
 #### Train SVM model
@@ -1726,7 +2121,8 @@ cor.test(ptb_prob, sampleData.test$AGE, method="spearman")
 
 df <- sampleData.test
 df$Score <- ptb_prob
-lm(Score ~ TB + AGE + Sex + HIV, data = df)
+model <- lm(Score ~ TB + AGE + Sex + HIV, data = df)
+summary(model)$coefficients[, c("Estimate", "Pr(>|t|)")]
 ```
 
 ###### ROC curve
@@ -1745,7 +2141,44 @@ dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
 roc_combined_test <- roc0
 ```
 
+###### Sensitivity
 
+```{r}
+ci_70 <- ci.se(
+  roc0,
+  specificities = 0.70,
+  conf.level = 0.95,
+  boot.n = 2000
+)
+
+sens_70 <- as.numeric(ci_70[1, 2])
+lower_70 <- as.numeric(ci_70[1, 1])
+upper_70 <- as.numeric(ci_70[1, 3])
+
+c(
+  Sensitivity = sens_70,
+  Lower_CI = lower_70,
+  Upper_CI = upper_70
+)
+
+
+ci_70 <- ci.se(
+  roc0,
+  specificities = 0.98,
+  conf.level = 0.95,
+  boot.n = 2000
+)
+
+sens_70 <- as.numeric(ci_70[1, 2])
+lower_70 <- as.numeric(ci_70[1, 1])
+upper_70 <- as.numeric(ci_70[1, 3])
+
+c(
+  Sensitivity = sens_70,
+  Lower_CI = lower_70,
+  Upper_CI = upper_70
+)
+```
 
 ##### Entire test data (only HIV pos)
 ###### Test SVM svmTune 
@@ -1862,6 +2295,84 @@ roc_combined_test_noTBGWAS <- roc0
 
 
 
+##### Entire test data (only pneumonia)
+###### Test SVM
+
+```{r}
+pred_combined_test_pneumonia <- predict(svmTune, data_test_pneumonia)
+prob_combined_test_pneumonia <- predict(svmTune, data_test_pneumonia, type="prob")
+```
+
+
+###### ROC curve
+
+```{r}
+roc0 <- roc(response = data_test_pneumonia$Class,
+            predictor = prob_combined_test_pneumonia[,1],
+            levels = rev(levels(data_test_pneumonia$Class)),ci=TRUE)
+
+ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
+dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
+                     lower = ciobj[, 1],
+                     upper = ciobj[, 3])
+
+roc_combined_test_pneumonia <- roc0
+```
+
+
+
+##### Entire test data (only matchedage)
+###### Test SVM
+
+```{r}
+pred_combined_test_matchedage <- predict(svmTune, data_test_matchedage)
+prob_combined_test_matchedage <- predict(svmTune, data_test_matchedage, type="prob")
+```
+
+
+###### ROC curve
+
+```{r}
+roc0 <- roc(response = data_test_matchedage$Class,
+            predictor = prob_combined_test_matchedage[,1],
+            levels = rev(levels(data_test_matchedage$Class)),ci=TRUE)
+
+ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
+dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
+                     lower = ciobj[, 1],
+                     upper = ciobj[, 3])
+
+roc_combined_test_matchedage <- roc0
+```
+
+
+
+##### Entire test data (only SA)
+###### Test SVM
+
+```{r}
+pred_combined_test_onlySA <- predict(svmTune, data_test_onlySA)
+prob_combined_test_onlySA <- predict(svmTune, data_test_onlySA, type="prob")
+```
+
+
+###### ROC curve
+
+```{r}
+roc0 <- roc(response = data_test_onlySA$Class,
+            predictor = prob_combined_test_onlySA[,1],
+            levels = rev(levels(data_test_onlySA$Class)),ci=TRUE)
+
+ciobj <- ci.se(roc0, specificities=seq(0, 1, l=25))
+dat.ci <- data.frame(x = as.numeric(rownames(ciobj)),
+                     lower = ciobj[, 1],
+                     upper = ciobj[, 3])
+
+roc_combined_test_onlySA <- roc0
+```
+
+
+
 ##### Both train and test
 
 ```{r}
@@ -1890,27 +2401,73 @@ fourrocPlot_func_2(roc_combined_train,roc_combined_test,roc_combined_test_noTBSA
 result <- threerocPlot_func(roc_combined_test, roc_cytokine_test, roc_metabol_test)
 result$plot  
 Fig2_total <- result$plot 
-result <- threerocPlot_func(roc_combined_test, roc_combined_test_HIVpos, roc_combined_test_HIVneg, names=c("Combined","HIV-positive","HIV-negative"),colors=c("#50b957", "red","#d89f32"))
+
+pdf(file="../Results/Figures/Manuscript/ROC-2.pdf",width = 9,height = 9)
+Fig2_total
+dev.off()
+
+result <- threerocPlot_func(roc_combined_test, roc_combined_test_HIVpos, roc_combined_test_HIVneg, names=c("Combined","HIV-positive","HIV-negative"),colors=c("#D55E00", "#7A68A6","#56B4E9"))
 result$plot  
 Fig2_combined_HIV <- result$plot 
-result <- threerocPlot_func(roc_combined_test, roc_combined_test_noTBGWAS, roc_combined_test_noTBSA,names=c("Combined","Symptomatic contacts","Hospitalized ORD"),colors=c("#50b957", "orange","#729cda"))
+
+result <- threerocPlot_func(roc_combined_test, roc_combined_test_noTBGWAS, roc_combined_test_noTBSA,names=c("Combined","Symptomatic contacts","Hospitalized ORD"),colors=c("#D55E00", "#7A68A6","#56B4E9"))
 result$plot  
 Fig2_combined_noTB <- result$plot 
-result <- threerocPlot_func(roc_cytokine_test, roc_cytokine_test_HIVpos, roc_cytokine_test_HIVneg,names=c("Cytokine","HIV-positive","HIV-negative"),colors=c("#d84882",  "red","#d89f32"))
+
+result <- threerocPlot_func(roc_combined_test, roc_combined_test_pneumonia, roc_combined_test_noTBSA,names=c("Combined","Pneumonia ORD","Hospitalized ORD"),colors=c("#D55E00", "black","#56B4E9"))
+result$plot  
+Fig2_combined_pneumonia <- result$plot 
+
+result <- tworocPlot_func(roc_combined_test, roc_combined_test_matchedage,names=c("Combined","Matched age"),colors=c("#D55E00", "black"))
+result$plot  
+Fig2_combined_matchedage <- result$plot 
+
+result <- tworocPlot_func(roc_combined_test, roc_combined_test_onlySA,names=c("Combined","Only SA"),colors=c("#D55E00", "black"))
+result$plot  
+Fig2_combined_onlySA <- result$plot 
+
+result <- threerocPlot_func(roc_cytokine_test, roc_cytokine_test_HIVpos, roc_cytokine_test_HIVneg,names=c("Cytokine","HIV-positive","HIV-negative"),colors=c("#009E73", "#7A68A6","#56B4E9"))
 result$plot  
 Fig2_cytokine_HIV <- result$plot 
-result <- threerocPlot_func(roc_cytokine_test, roc_cytokine_test_noTBGWAS, roc_cytokine_test_noTBSA,names=c("Cytokine","Symptomatic contacts","Hospitalized ORD"),colors=c("#d84882","orange" ,"#729cda"))
+
+result <- threerocPlot_func(roc_cytokine_test, roc_cytokine_test_noTBGWAS, roc_cytokine_test_noTBSA,names=c("Cytokine","Symptomatic contacts","Hospitalized ORD"),colors=c("#009E73","#7A68A6","#56B4E9"))
 result$plot  
 Fig2_cytokine_noTB <- result$plot 
+
+result <- threerocPlot_func(roc_cytokine_test, roc_cytokine_test_pneumonia, roc_cytokine_test_noTBSA,names=c("Cytokine","Pneumonia ORD","Hospitalized ORD"),colors=c("#009E73","black","#56B4E9"))
+result$plot  
+Fig2_cytokine_pneumonia <- result$plot 
+
+result <- tworocPlot_func(roc_cytokine_test, roc_cytokine_test_matchedage,names=c("Cytokine","Matched age"),colors=c("#009E73","black"))
+result$plot  
+Fig2_cytokine_matchedage <- result$plot 
+
+result <- tworocPlot_func(roc_cytokine_test, roc_cytokine_test_onlySA,names=c("Cytokine","Only SA"),colors=c("#009E73","black"))
+result$plot  
+Fig2_cytokine_onlySA <- result$plot 
+
 result <- threerocPlot_func(roc_metabol_test, roc_metabol_test_HIVpos, roc_metabol_test_HIVneg,
-                            names=c("Metabolite","HIV-positive","HIV-negative"),colors=c("#7b63d4", "red","#d89f32"))
+                            names=c("Metabolite","HIV-positive","HIV-negative"),colors=c("#CC79A7", "#7A68A6","#56B4E9"))
 result$plot  
 Fig2_metabol_HIV <- result$plot 
-result <- threerocPlot_func(roc_metabol_test, roc_metabol_test_noTBGWAS, roc_metabol_test_noTBSA,names=c("Metabolite","Symptomatic contacts","Hospitalized ORD"),colors=c("#7b63d4", "orange","#729cda"))
+
+result <- threerocPlot_func(roc_metabol_test, roc_metabol_test_noTBGWAS, roc_metabol_test_noTBSA,names=c("Metabolite","Symptomatic contacts","Hospitalized ORD"),colors=c("#CC79A7", "#7A68A6","#56B4E9"))
 result$plot  
 Fig2_metabol_noTB <- result$plot 
 
-save(Fig2_metabol_noTB,Fig2_metabol_HIV,Fig2_cytokine_noTB,Fig2_cytokine_HIV,Fig2_combined_noTB,Fig2_combined_HIV,Fig2_total,file="../Results/Fig2.RData")
+result <- threerocPlot_func(roc_metabol_test, roc_metabol_test_pneumonia, roc_metabol_test_noTBSA,names=c("Metabolite","Pneumonia ORD","Hospitalized ORD"),colors=c("#CC79A7", "black","#56B4E9"))
+result$plot  
+Fig2_metabol_pneumonia <- result$plot 
+
+result <- tworocPlot_func(roc_metabol_test, roc_metabol_test_matchedage,names=c("Metabolite","Matched age"),colors=c("#CC79A7", "black"))
+result$plot  
+Fig2_metabol_matchedage <- result$plot 
+
+result <- tworocPlot_func(roc_metabol_test, roc_metabol_test_onlySA,names=c("Metabolite","Only SA"),colors=c("#CC79A7", "black"))
+result$plot  
+Fig2_metabol_onlySA <- result$plot 
+
+save(Fig2_metabol_noTB,Fig2_metabol_HIV,Fig2_cytokine_noTB,Fig2_cytokine_HIV,Fig2_combined_noTB,Fig2_combined_HIV,Fig2_total,Fig2_metabol_pneumonia,Fig2_cytokine_pneumonia, Fig2_combined_pneumonia, Fig2_metabol_matchedage,Fig2_cytokine_matchedage, Fig2_combined_matchedage, Fig2_metabol_onlySA,Fig2_cytokine_onlySA, Fig2_combined_onlySA, file="../Results/Fig2.RData")
 ```
 
 ## Make Figure 2
@@ -1938,6 +2495,14 @@ pdf(file="../Results/Figures/Manuscript/Figure 2.pdf",width=32,height = 30)
 p1 <- plot_grid( NULL, Fig2_total,rel_widths = c(1,1.5),ncol = 2,labels = c("a", "b"),label_size = 36,label_fontface = "bold")
 p2 <- plot_grid(Fig2_combined_HIV,Fig2_cytokine_HIV,Fig2_metabol_HIV,Fig2_combined_noTB,Fig2_cytokine_noTB,Fig2_metabol_noTB,nrow=2,ncol=3,labels = c("c","d","e","f","g","h"),label_size = 36,label_fontface = "bold",label_y = 1.1)
 plot_grid(p1,p2,nrow=2,ncol=1,rel_heights = c(1,2))
+dev.off()
+```
+
+## Make Supplementary Figure 3
+
+```{r}
+pdf(file="../Results/Figures/Manuscript/SuppFig3.pdf",width=32,height = 10)
+plot_grid(Fig2_combined_matchedage,Fig2_combined_pneumonia,Fig2_combined_onlySA, nrow=1,ncol=3,labels =c("a","b","c"),label_size = 36,label_fontface = "bold")
 dev.off()
 ```
 
@@ -2275,15 +2840,17 @@ fourrocPlot_func_2(roc_metabol_train_ratio,roc_metabol_test_ratio,roc_metabol_te
 ### Genarate figures
 ```{r}
 result <- threerocPlot_func(roc_combined_test,roc_metabol_test,roc_metabol_test_ratio,
-                            names=c("Combined","Metabolite","Kyn/Trp + retinol"),colors=c("#50b957","#7b63d4", "#3abbcc"))
+                            names=c("Combined","Metabolite","Kyn/Trp + retinol"),colors=c("#D55E00",
+ 
+  "#CC79A7", "black"))
 result$plot  
 Fig3_metabol <- result$plot 
 
 result <- threerocPlot_func(roc_metabol_test_ratio, roc_metabol_test_HIVpos_ratio, roc_metabol_test_HIVneg_ratio,
-                            names=c("Kyn/Trp + retinol","HIV-positive","HIV-negative"),colors=c("#3abbcc", "red","#d89f32"))
+                            names=c("Kyn/Trp + retinol","HIV-positive","HIV-negative"),colors=c("black", "#7A68A6","#56B4E9"))
 result$plot  
 Fig3_metabol_HIV <- result$plot 
-result <- threerocPlot_func(roc_metabol_test_ratio, roc_metabol_test_noTBGWAS_ratio, roc_metabol_test_noTBSA_ratio,names=c("Kyn/Trp + retinol","Symptomatic contacts","Hospitalized ORD"),colors=c("#3abbcc", "orange","#729cda"))
+result <- threerocPlot_func(roc_metabol_test_ratio, roc_metabol_test_noTBGWAS_ratio, roc_metabol_test_noTBSA_ratio,names=c("Kyn/Trp + retinol","Symptomatic contacts","Hospitalized ORD"),colors=c("black", "#7A68A6","#56B4E9"))
 result$plot  
 Fig3_metabol_noTB <- result$plot 
 
@@ -2537,15 +3104,17 @@ fourrocPlot_func_2(roc_cytokine_train_IFNG,roc_cytokine_test_IFNG,roc_cytokine_t
 ### Genarate figures
 ```{r}
 result <- threerocPlot_func(roc_combined_test,roc_cytokine_test,roc_cytokine_test_IFNG,
-                            names=c("Combined","Cytokine","IFN-gamma"),colors=c("#50b957","#c65999","#e08181"))
+                            names=c("Combined","Cytokine","IFN-gamma"),colors=c("#D55E00",
+  "#009E73","black"
+  ))
 result$plot  
 Fig3_cytokine <- result$plot 
 
 result <- threerocPlot_func(roc_cytokine_test_IFNG, roc_cytokine_test_HIVpos_IFNG, roc_cytokine_test_HIVneg_IFNG,
-                            names=c("IFN-gamma","HIV-positive","HIV-negative"),colors=c("#e08181", "red","#d89f32"))
+                            names=c("IFN-gamma","HIV-positive","HIV-negative"),colors=c("black", "#7A68A6","#56B4E9"))
 result$plot  
 Fig3_cytokine_HIV <- result$plot 
-result <- threerocPlot_func(roc_cytokine_test_IFNG, roc_cytokine_test_noTBGWAS_IFNG, roc_cytokine_test_noTBSA_IFNG,names=c("IFN-gamma","Symptomatic contacts","Hospitalized ORD"),colors=c("#e08181", "orange","#729cda"))
+result <- threerocPlot_func(roc_cytokine_test_IFNG, roc_cytokine_test_noTBGWAS_IFNG, roc_cytokine_test_noTBSA_IFNG,names=c("IFN-gamma","Symptomatic contacts","Hospitalized ORD"),colors=c("black", "#7A68A6","#56B4E9"))
 result$plot  
 Fig3_cytokine_noTB <- result$plot 
 
@@ -3489,31 +4058,33 @@ fourrocPlot_func(roc_cytokine_train_CRP,roc_cytokine_test_CRP,roc_cytokine_test_
 
 ```{r}
 result <- threerocPlot_func(roc_cytokine_test_IP10,roc_cytokine_test_TNF,roc_cytokine_test_third,
-                            names=c("IP.10","TNF.alpha","IP.10,IL.6,IL10"),colors=c("#6a732a","#c57ebf","#ae7d45" ))
+                            names=c("IP.10","TNF.alpha","IP.10,IL.6,IL10"),colors=c("#D55E00",
+  "#009E73",
+  "#CC79A7" ))
 result$plot  
 Fig3_cytokine_others <- result$plot 
 
 result <- threerocPlot_func(roc_cytokine_test_IP10, roc_cytokine_test_HIVpos_IP10, roc_cytokine_test_HIVneg_IP10,
-                            names=c("IP.10","HIV-positive","HIV-negative"),colors=c("#6a732a", "red","#d89f32"))
+                            names=c("IP.10","HIV-positive","HIV-negative"),colors=c("#D55E00", "#7A68A6","#56B4E9"))
 result$plot  
 Fig3_cytokine_HIV_IP10 <- result$plot 
-result <- threerocPlot_func(roc_cytokine_test_IP10, roc_cytokine_test_noTBGWAS_IP10, roc_cytokine_test_noTBSA_IP10,names=c("IP.10","Symptomatic contacts","Hospitalized ORD"),colors=c("#6a732a", "orange","#729cda"))
+result <- threerocPlot_func(roc_cytokine_test_IP10, roc_cytokine_test_noTBGWAS_IP10, roc_cytokine_test_noTBSA_IP10,names=c("IP.10","Symptomatic contacts","Hospitalized ORD"),colors=c("#D55E00", "#7A68A6","#56B4E9"))
 result$plot  
 Fig3_cytokine_noTB_IP10 <- result$plot 
 
 result <- threerocPlot_func(roc_cytokine_test_TNF, roc_cytokine_test_HIVpos_TNF, roc_cytokine_test_HIVneg_TNF,
-                            names=c("TNF.alpha","HIV-positive","HIV-negative"),colors=c("#c57ebf", "red","#d89f32"))
+                            names=c("TNF.alpha","HIV-positive","HIV-negative"),colors=c("#009E73", "#7A68A6","#56B4E9"))
 result$plot  
 Fig3_cytokine_HIV_TNF <- result$plot 
-result <- threerocPlot_func(roc_cytokine_test_TNF, roc_cytokine_test_noTBGWAS_TNF, roc_cytokine_test_noTBSA_TNF,names=c("TNF.alpha","Symptomatic contacts","Hospitalized ORD"),colors=c("#c57ebf", "orange","#729cda"))
+result <- threerocPlot_func(roc_cytokine_test_TNF, roc_cytokine_test_noTBGWAS_TNF, roc_cytokine_test_noTBSA_TNF,names=c("TNF.alpha","Symptomatic contacts","Hospitalized ORD"),colors=c("#009E73", "#7A68A6","#56B4E9"))
 result$plot  
 Fig3_cytokine_noTB_TNF <- result$plot 
 
 result <- threerocPlot_func(roc_cytokine_test_third, roc_cytokine_test_HIVpos_third, roc_cytokine_test_HIVneg_third,
-                            names=c("IP.10,IL.6,IL10","HIV-positive","HIV-negative"),colors=c("#ae7d45", "red","#d89f32"))
+                            names=c("IP.10,IL.6,IL10","HIV-positive","HIV-negative"),colors=c("#CC79A7", "#7A68A6","#56B4E9"))
 result$plot  
 Fig3_cytokine_HIV_third <- result$plot 
-result <- threerocPlot_func(roc_cytokine_test_third, roc_cytokine_test_noTBGWAS_third, roc_cytokine_test_noTBSA_third,names=c("IP.10,IL.6,IL10","Symptomatic contacts","Hospitalized ORD"),colors=c("#ae7d45", "orange","#729cda"))
+result <- threerocPlot_func(roc_cytokine_test_third, roc_cytokine_test_noTBGWAS_third, roc_cytokine_test_noTBSA_third,names=c("IP.10,IL.6,IL10","Symptomatic contacts","Hospitalized ORD"),colors=c("#CC79A7", "#7A68A6","#56B4E9"))
 result$plot  
 Fig3_cytokine_noTB_third <- result$plot 
 
@@ -3523,7 +4094,7 @@ save(Fig3_cytokine_noTB_IP10,Fig3_cytokine_noTB_TNF,Fig3_cytokine_noTB_third,Fig
 ## Make Figure 3
 
 ```{r}
-pdf(file="../Results/Figures/Manuscript/Figure3.pdf",width=32,height = 20)
+pdf(file="../Results/Figures/Manuscript/Figure 3.pdf",width=32,height = 20)
 plot_grid(Fig3_metabol,Fig3_metabol_HIV,Fig3_metabol_noTB,ncol=3,labels=c("a","b","c"),label_size = 36)/plot_grid(Fig3_cytokine,Fig3_cytokine_HIV,Fig3_cytokine_noTB,ncol=3,labels = c("d","e","f"),label_size = 36)
 dev.off()
 ```
@@ -3531,13 +4102,114 @@ dev.off()
 ## Make Supplementary Figure 3
 
 ```{r}
-pdf(file="../Results/Figures/Manuscript/SuppFig4.pdf",width=40,height = 20)
+CRP <- read_excel("../../Data/ReadyData/2025-03-03_PotPrev_Emory_Data.xlsx")
+CRP <- CRP%>%filter(CRP=="Yes")
+CRP$study_id <- paste0("SA",CRP$study_id)
+CRP <- as.data.frame(CRP)
+row.names(CRP) <- CRP$study_id
+CRP <- CRP[,c("study_id","Results")]
+names(CRP) <- c("study_id","CRP")
+
+shared_samples <- intersect(row.names(CytokineData_Baseline_Adult_imputed),row.names(CRP))
+cyto_data <- CytokineData_Baseline_Adult_imputed[shared_samples,c("IFN.gamma" , "IL.22"   ,  "IL.10","IL.1beta")]
+CRP <- CRP[shared_samples,]
+row.names(ClinicalData_Baseline_Adult)<- ClinicalData_Baseline_Adult$ID
+grp <- ClinicalData_Baseline_Adult[shared_samples,"TB"]
+
+library(ggplot2)
+
+plot_data <- data.frame(
+  CRP = as.numeric(CRP$CRP),
+  grp = grp,
+  cyto_data
+)
+
+cytokines <- c("IFN.gamma", "IL.22", "IL.10","IL.1beta")
+plots <- list()
+for (cyt in cytokines) {
+
+  p <- ggplot(plot_data,
+              aes(x = CRP,
+                  y = .data[[cyt]],
+                  color = grp)) +
+
+    geom_point(size = 2.5, alpha = 0.8) +
+
+    scale_color_manual(
+     values = c("No" = "#E69F00", "Yes" = "#0072B2"),
+    labels = c("No" = "ORD", "Yes" = "PTB")
+    )+
+    ## One regression line for all samples
+    geom_smooth(
+      aes(group = 1),
+      method = "lm",
+      color = "black",
+      se = FALSE,
+      linewidth = 1,
+      show.legend = FALSE
+    ) +
+
+    ## Spearman correlation for each group
+    stat_cor(
+      aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~")),
+      method = "spearman",
+      label.x.npc = "left",
+      label.y.npc = c(0.98, 0.94),
+      show.legend = FALSE
+    ) +
+
+    labs(
+      x = "CRP",
+      y = cyt,
+      color = ""
+    ) +
+    theme(
+      axis.title = element_text(size = 18),
+      axis.text = element_text(size = 18),
+      plot.title = element_text(size = 18, face = "bold"),
+      legend.title = element_text(size = 18),
+      legend.text = element_text(size = 18)
+    )+
+
+    theme_classic()
+
+ plots[[cyt]] <- p
+}
+
+pdf("../Results/Figures/Manuscript/SuppFig3.pdf",width = 12,height = 5)
+plot_grid(plots[["IFN.gamma"]]+theme(legend.position = "none"),plots[["IL.1beta"]]+theme(legend.position = "none"), plots[["IL.22"]]+theme(legend.position = "none"),plots[["IL.10"]],ncol=4,labels=c("a","b","c","d"),label_size = 20)
+dev.off()
+```
+
+## Make Supplementary Figure 4
+
+```{r}
+result <- tworocPlot_func(roc_combined_test,roc_cytokine_test_CRP,names=c("Combined","CRP"),colors=c("#D55E00","black"))
+result$plot 
+pdf("../Results/Figures/Manuscript/SuppFig4.pdf",width = 10,height = 10)
+result$plot
+dev.off()
+```
+
+
+## Make Supplementary Figure 5
+
+```{r}
+pdf(file="../Results/Figures/Manuscript/SuppFig5.pdf",width=32,height = 10)
+plot_grid(Fig2_combined_matchedage,Fig2_combined_pneumonia,Fig2_combined_onlySA, nrow=1,ncol=3,labels =c("a","b","c"),label_size = 36,label_fontface = "bold")
+dev.off()
+```
+
+
+## Make Supplementary Figure 6
+
+```{r}
+pdf(file="../Results/Figures/Manuscript/SuppFig6.pdf",width=40,height = 20)
 p1 <- plot_grid(Fig3_cytokine_HIV_IP10,Fig3_cytokine_HIV_TNF,Fig3_cytokine_HIV_third,Fig3_cytokine_noTB_IP10,Fig3_cytokine_noTB_TNF,Fig3_cytokine_noTB_third,ncol=3,nrow=2,labels = c("b","c","d","e","f","g"),label_size = 36)
 p2 <- plot_grid(Fig3_cytokine_others,labels = c("a"),label_size = 36)
 plot_grid(p2,p1,rel_heights = c(1,1),rel_widths = c(0.5,1.5))
 dev.off()
 ```
-
 
 
 ## DE Metabolites for treatment response at baseline
@@ -4160,7 +4832,7 @@ volcanoPlot_func(volcanoPlot_data_CYT,
 ```
 
 
-## Make Supplementary Figure 4
+## Make Supplementary Figure 7
 
 ```{r}
 Fig <- plot_grid(
@@ -4182,7 +4854,7 @@ Fig <- plot_grid(
   rel_widths = c(1, 1)
 )
 
-pdf(file="../Results/Figures/Manuscript/SuppFig5.pdf",height = 30,width = 20)
+pdf(file="../Results/Figures/Manuscript/SuppFig7.pdf",height = 30,width = 20)
 Fig
 dev.off()
 ```
@@ -4852,19 +5524,26 @@ result$plot
 ### Genarate figures
 ```{r}
 result <- threerocPlot_func(roc_combined_test, roc_cytokine_test,roc_metabol_test,
-                            names=c("Combined","Cytokine","Metabolite"),colors=c("#50b957", "#d84882","#777acd"))
+                            names=c("Combined","Cytokine","Metabolite"),colors=c("#D55E00",
+  "#009E73",
+  "#CC79A7"))
 result$plot  
 Fig4_total <- result$plot 
-result <- threerocPlot_func(roc_combined_test, roc_combined_test_HIVpos, roc_combined_test_HIVneg, names=c("Combined","HIV-positive","HIV-negative"),colors=c("#50b957", "red","#d89f32"))
+
+pdf(file="../Results/Figures/Manuscript/ROC-4.pdf",width = 9,height = 9)
+Fig4_total
+dev.off()
+
+result <- threerocPlot_func(roc_combined_test, roc_combined_test_HIVpos, roc_combined_test_HIVneg, names=c("Combined","HIV-positive","HIV-negative"),colors=c("#D55E00", "#7A68A6","#56B4E9"))
 result$plot  
 Fig4_combined_HIV <- result$plot 
 
-result <- threerocPlot_func(roc_cytokine_test, roc_cytokine_test_HIVpos, roc_cytokine_test_HIVneg,names=c("Cytokine","HIV-positive","HIV-negative"),colors=c("#d84882",  "red","#d89f32"))
+result <- threerocPlot_func(roc_cytokine_test, roc_cytokine_test_HIVpos, roc_cytokine_test_HIVneg,names=c("Cytokine","HIV-positive","HIV-negative"),colors=c("#009E73",  "#7A68A6","#56B4E9"))
 result$plot  
 Fig4_cytokine_HIV <- result$plot 
 
 result <- threerocPlot_func(roc_metabol_test, roc_metabol_test_HIVpos, roc_metabol_test_HIVneg,
-                            names=c("Metabolite","HIV-positive","HIV-negative"),colors=c("#7b63d4", "red","#d89f32"))
+                            names=c("Metabolite","HIV-positive","HIV-negative"),colors=c("#CC79A7", "#7A68A6","#56B4E9"))
 result$plot  
 Fig4_metabol_HIV <- result$plot 
 
@@ -4932,7 +5611,7 @@ inputData_melted <- rbind(inputData_melted,inputData_melted_temp,inputData_melte
 ### Visualization
 
 ```{r}
-outcome_colors <- c("ORD" = "#ca6332","CURED" = "#3d814b", "FAILED" = "#cf3f42")  
+outcome_colors <- c("ORD" =  "#E69F00","CURED" = "#7A68A6", "FAILED" = "#56B4E9")  
 
 plot <- ggplot(inputData_melted, aes(x = factor(Visit.Week), y = value)) +
   geom_boxplot(outlier.shape = NA, color = "black", fill = "snow") +
@@ -5118,7 +5797,7 @@ Fig5_pathways <- ggplot(Mummichog_sig, aes(y = pathway, x = logP)) +
   geom_point(aes(color = ion), size = 12, alpha = 0.9) +
   geom_text(aes(label = overlap_size), size = 12,  color="black",face="bold",vjust = 0.5, hjust = 0.5) +
   geom_vline(xintercept = -log10(0.05), color = "red", linetype = "dashed", linewidth = 1) +
-  scale_color_manual(values = c("#bf4eb4", "#89b436"), labels=c("pos"="Positive","neg"="Negative"),name = "Ion Mode: ") +
+  scale_color_manual(values = c("#7A68A6","#56B4E9"), labels=c("pos"="Positive","neg"="Negative"),name = "Ion Mode: ") +
   scale_x_continuous(expand = c(0.01, 0), limits = c(0, 4.5)) +
   labs(x = expression(bold(-log[10](FDR-corrected_p-value))), y = NULL) +
   theme_classic(base_size = 26) +
@@ -5129,7 +5808,7 @@ Fig5_pathways <- ggplot(Mummichog_sig, aes(y = pathway, x = logP)) +
     legend.position = "top",
     legend.text = element_text(size = 26)
   )
-pdf(file="../Resfults/Figures/Manuscript/Figure 5-c-1.pdf",width = 15,height = 10)
+pdf(file="../Results/Figures/Manuscript/Figure 5-c-1.pdf",width = 20,height = 10)
 Fig5_pathways
 dev.off()
 
@@ -5144,7 +5823,7 @@ venn_data <- list(
 library(ggvenn)
 vennPlot <- ggvenn(
   venn_data,
-  fill_color = c("#bf4eb4", "#89b436"),
+  fill_color = c("#7A68A6","#56B4E9"),
   set_name_size = 26,  
   text_size = 26      
 ) 
@@ -5196,8 +5875,9 @@ links <- data.frame(from = df_sig$Metabolite,
 
 col_fun <- colorRamp2(c(-1, 0, 1), c("blue", "white", "red"))
 
-grid.col <- c(setNames(rep("#7b63d4", length(metabolite_names)), tolower(metabolite_names)),
-              setNames(rep("#d84882", length(cytokine_names)), cytokine_names))
+
+grid.col <- c(setNames(rep("#CC79A7", length(metabolite_names)), tolower(metabolite_names)),
+              setNames(rep("#009E73", length(cytokine_names)), cytokine_names))
 
 library(circlize)
 

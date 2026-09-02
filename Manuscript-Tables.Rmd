@@ -1,7 +1,7 @@
 ---
 title: "Multiomics TB biomarker discovery project"
 author: "Zaynab Mousavian"
-date: "March 1, 2026"
+date: "September 1, 2026"
 output:
   html_document: default
   pdf_document: default
@@ -151,6 +151,94 @@ final_table <- data.frame(
 )
 ```
 
+## CD4 for HIV positive
+
+```{r}
+ClinicalData_Baseline_Adult %>%
+  filter(HIV == "Positive") %>%
+  group_by(TB, SA) %>%
+  summarise(
+    CD4 = paste0(
+      median(CD4, na.rm = TRUE),
+      " (",
+      quantile(CD4, 0.25, na.rm = TRUE),
+      "–",
+      quantile(CD4, 0.75, na.rm = TRUE),
+      ")"
+    )
+  )
+
+ClinicalData_Baseline_Adult %>%
+  filter(HIV == "Positive") %>%
+  group_by(TB) %>%
+  summarise(
+    CD4 = paste0(
+      median(CD4, na.rm = TRUE),
+      " (",
+      quantile(CD4, 0.25, na.rm = TRUE),
+      "–",
+      quantile(CD4, 0.75, na.rm = TRUE),
+      ")"
+    )
+  )
+
+ClinicalData_Baseline_Adult %>%
+  filter(HIV == "Positive") %>%
+  group_by(TB) %>%
+  summarise(
+    n_missing_CD4 = sum(is.na(CD4))
+  )
+```
+
+## HIV Viral load for HIV positive
+
+```{r}
+ClinicalData_Baseline_Adult %>% 
+  filter(HIV == "Positive") %>%
+  mutate(
+    VL_numeric = case_when(
+      as.character(HIV.Viral.Load) == "LDL" ~ 20,
+      TRUE ~ as.numeric(as.character(HIV.Viral.Load))
+    )
+  )%>%
+  group_by(TB, SA) %>%
+  summarise(
+    VL = paste0(
+      median(VL_numeric, na.rm = TRUE),
+      " (",
+      quantile(VL_numeric, 0.25, na.rm = TRUE),
+      "–",
+      quantile(VL_numeric, 0.75, na.rm = TRUE),
+      ")"
+    )
+  )
+
+ClinicalData_Baseline_Adult %>% 
+  filter(HIV == "Positive") %>%
+  mutate(
+    VL_numeric = case_when(
+      as.character(HIV.Viral.Load) == "LDL" ~ 20,
+      TRUE ~ as.numeric(as.character(HIV.Viral.Load))
+    )
+  )%>%
+  group_by(TB) %>%
+  summarise(
+    VL = paste0(
+      median(VL_numeric, na.rm = TRUE),
+      " (",
+      quantile(VL_numeric, 0.25, na.rm = TRUE),
+      "–",
+      quantile(VL_numeric, 0.75, na.rm = TRUE),
+      ")"
+    )
+  )
+ClinicalData_Baseline_Adult %>%
+  filter(HIV == "Positive") %>%
+  group_by(TB) %>%
+  summarise(
+    n_missing_VL = sum(is.na(HIV.Viral.Load))
+  )
+```
 ## CXray
 
 ```{r}
@@ -260,9 +348,28 @@ final_table <- sa_summary %>%
   select(Symptom, `n (%)`)
 
 final_table
+
+samples <- ClinicalData_Baseline_Adult%>%filter(TB=="Yes")%>%select(ID)%>%unlist()
+
+df1 <- SA_symptoms %>%
+  filter(study_id %in% samples)
+
+symptoms1 <- c("Cough","Fever...24", "Loss of weight","Night sweats")
+
+sa_summary <- df1 %>%
+  select(all_of(symptoms1)) %>%
+  pivot_longer(everything(),
+               names_to = "Symptom",
+               values_to = "Response") %>%
+  filter(!is.na(Response)) %>%
+  group_by(Symptom) %>%
+  summarise(
+    n1 = sum(Response == "Yes"),
+    N1 = n(),
+    .groups = "drop"
+  )
+sa_summary
 ```
-
-
 
 # Load metabolite, cytokine and clinical data 
 
@@ -342,181 +449,269 @@ combinedData.train$Group= as.factor(sampleData.train$TB)
 combinedData.train$Group <- factor(combinedData.train$Group, levels =c("Yes","No"))
 ```
 
-# Run all combinations out of 13 markers selected by randomForestSRC
+# Make Supplementary Table 1 
+
+## Run all seuqntial combinations out of 13 markers selected by randomForestSRC
 
 ```{r}
-features <- c("IFN.gamma","IL.1beta","IL.22","IL.10","IFN.beta","METHIONINE",
-              "OXOPROLINE","PYRUVATE","IP.10","IL.18","TNF.alpha","IL.6","C22-5-FA")
+library(caret)
+library(pROC)
+library(dplyr)
+library(doParallel)
 
-features <- c("IFN.gamma","IL.22","IL.10")
+# ============================================================
+# 13 sequential signatures
+# ============================================================
 
-all_combinations <- unlist(lapply(3:3, function(k) {
-  combn(features, k, simplify = FALSE)
-}), recursive = FALSE)
+features <- c(
+  "IFN.gamma", "IL.1beta", "IL.22", "METHIONINE", "OXOPROLINE",
+  "IL.10", "IFN.beta", "PYRUVATE", "IP.10", "IL.18",
+  "TNF.alpha", "IL.6", "C22-5-FA"
+)
 
-length(all_combinations)
+set.seed(123)
 
-cl <- makeCluster(detectCores() - 1)
+# ------------------------------------------------------------
+# SVM cross-validation settings
+# ------------------------------------------------------------
+
+fitControl <- trainControl(
+  method = "repeatedcv",
+  number = 10,
+  repeats = 10,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary
+)
+
+svmGrid <- expand.grid(
+  sigma = seq(0.01, 1, length.out = 10),
+  C = 2^seq(-5, 10, length.out = 10)
+)
+
+# ------------------------------------------------------------
+# Start parallel processing
+# ------------------------------------------------------------
+
+cl <- makeCluster(max(1, detectCores() - 1))
 registerDoParallel(cl)
 
-if(!exists("fitControl")){
-  fitControl <- trainControl(method = "repeatedcv",
-                             number = 10,
-                             repeats = 10,
-                             classProbs = TRUE,
-                             summaryFunction = twoClassSummary,
-                             allowParallel = FALSE)   # prevent nested parallel
-}
+# ------------------------------------------------------------
+# Run all 13 signatures
+# ------------------------------------------------------------
 
-if(!exists("svmGrid")){
-  svmGrid <- expand.grid(sigma = seq(0.01, 1, length.out = 10),
-                         C = 2^seq(-5, 10, length.out = 10))
-}
+results <- list()
 
-results_list <- foreach(i = seq_along(all_combinations),
-                        .packages = c("caret","pROC","dplyr")) %dopar% {
-
-  t0 <- Sys.time()
-  sel_feats <- all_combinations[[i]]
-
-  row_result <- data.frame(
-    combo_id = i,
-    k = length(sel_feats),
-    features = paste(sel_feats, collapse = ","),
-    auc = NA_real_,
-    auc_low = NA_real_,
-    auc_high = NA_real_,
-    sens_spec98 = NA_real_,
-    sens_spec98_low = NA_real_,
-    sens_spec98_high = NA_real_,
-    sens_spec70 = NA_real_,
-    sens_spec70_low = NA_real_,
-    sens_spec70_high = NA_real_,
-    n_train = NA_integer_,
-    n_test = NA_integer_,
-    runtime_secs = NA_real_,
-    status = NA_character_,
-    stringsAsFactors = FALSE
+for (k in 1:length(features)) {
+  
+  cat("Running signature", k, "of", length(features), "\n")
+  
+  # Features included in this signature
+  selected_features <- features[1:k]
+  
+  # Identify cytokines and metabolites
+  selected_cytokines <- selected_features[
+    selected_features %in% colnames(cytokineData.train)
+  ]
+  
+  selected_metabolites <- selected_features[
+    selected_features %in% colnames(metaboData.train)
+  ]
+  
+  # ----------------------------------------------------------
+  # TRAINING DATA
+  # ----------------------------------------------------------
+  
+  data_train <- cbind(
+    cytokineData.train[, selected_cytokines, drop = FALSE],
+    metaboData.train[, selected_metabolites, drop = FALSE]
   )
-
-  tryCatch({
-
-    data_train <- as.data.frame(combinedData.train[, sel_feats, drop = FALSE])
-    data_train$Class <- as.factor(gsub(" ", "", sampleData.train$TB))
-    data_train$Class <- factor(data_train$Class, levels = c("Yes","No"))
-
-    data_test <- as.data.frame(combinedData.test[, sel_feats, drop = FALSE])
-    data_test$Class <- as.factor(gsub(" ", "", sampleData.test$TB))
-    data_test$Class <- factor(data_test$Class, levels = c("Yes","No"))
-
-    row_result$n_train <- nrow(data_train)
-    row_result$n_test <- nrow(data_test)
-
-    set.seed(123)
-
-    svmTune <- train(Class ~ .,
-                     data = data_train,
-                     method = "svmRadial",
-                     preProc = c("center","scale"),
-                     metric = "ROC",
-                     tuneGrid = svmGrid,
-                     trControl = fitControl)
-
-    probs_test <- predict(svmTune, data_test, type = "prob")
-    prob_yes <- probs_test[,1]
-
-    roc_test <- roc(response = data_test$Class,
-                    predictor = prob_yes,
-                    levels = rev(levels(data_test$Class)),
-                    ci = TRUE,
-                    quiet = TRUE)
-
-    auc_val <- as.numeric(auc(roc_test))
-    auc_ci <- ci.auc(roc_test)
-
-    row_result$auc <- auc_val
-    row_result$auc_low <- as.numeric(auc_ci[1])
-    row_result$auc_high <- as.numeric(auc_ci[3])
-
-    ci_spec98 <- tryCatch({
-      ci.se(roc_test, specificities = 0.98)
-    }, error=function(e){NULL})
-
-    if(!is.null(ci_spec98)){
-      row_result$sens_spec98 <- as.numeric(ci_spec98[1,2])
-      row_result$sens_spec98_low <- as.numeric(ci_spec98[1,1])
-      row_result$sens_spec98_high <- as.numeric(ci_spec98[1,3])
-    } else {
-      sens_est <- coords(roc_test,x=0.98,input="specificity",
-                         ret="sensitivity",transpose=FALSE)
-      row_result$sens_spec98 <- as.numeric(sens_est)
-    }
-
-    ci_spec70 <- tryCatch({
-      ci.se(roc_test, specificities = 0.70)
-    }, error=function(e){NULL})
-
-    if(!is.null(ci_spec70)){
-      row_result$sens_spec70 <- as.numeric(ci_spec70[1,2])
-      row_result$sens_spec70_low <- as.numeric(ci_spec70[1,1])
-      row_result$sens_spec70_high <- as.numeric(ci_spec70[1,3])
-    } else {
-      sens_est70 <- coords(roc_test,x=0.70,input="specificity",
-                           ret="sensitivity",transpose=FALSE)
-      row_result$sens_spec70 <- as.numeric(sens_est70)
-    }
-
-    row_result$status <- "OK"
-
-  }, error=function(e){
-    row_result$status <- paste0("ERROR: ",gsub("\n"," ",conditionMessage(e)))
-  })
-
-  t1 <- Sys.time()
-  row_result$runtime_secs <- as.numeric(difftime(t1,t0,units="secs"))
-
-  row_result
+  
+  data_train <- as.data.frame(data_train)
+  
+  data_train$Class <- factor(
+    gsub(" ", "", sampleData.train$TB),
+    levels = c("Yes", "No")
+  )
+  
+  # ----------------------------------------------------------
+  # TEST DATA
+  # ----------------------------------------------------------
+  
+  data_test <- cbind(
+    cytokineData.test[, selected_cytokines, drop = FALSE],
+    metaboData.test[, selected_metabolites, drop = FALSE]
+  )
+  
+  data_test <- as.data.frame(data_test)
+  
+  data_test$Class <- factor(
+    gsub(" ", "", sampleData.test$TB),
+    levels = c("Yes", "No")
+  )
+  
+  # ----------------------------------------------------------
+  # TRAIN SVM
+  # ----------------------------------------------------------
+  
+  set.seed(123)
+  
+  svmTune <- train(
+    Class ~ .,
+    data = data_train,
+    method = "svmRadial",
+    preProc = c("center", "scale"),
+    metric = "ROC",
+    tuneGrid = svmGrid,
+    trControl = fitControl
+  )
+  
+  # ----------------------------------------------------------
+  # PREDICT ON INDEPENDENT TEST SET
+  # ----------------------------------------------------------
+  
+  prob_test <- predict(
+    svmTune,
+    newdata = data_test,
+    type = "prob"
+  )
+  
+  # Probability of TB
+  ptb_prob <- prob_test[, "Yes"]
+  
+  # ----------------------------------------------------------
+  # ROC / AUC
+  # ----------------------------------------------------------
+  
+  roc_obj <- roc(
+    response = data_test$Class,
+    predictor = ptb_prob,
+    levels = c("No", "Yes"),
+    direction = "<",
+    ci = TRUE,
+    boot.n = 2000
+  )
+  
+  auc_value <- as.numeric(auc(roc_obj))
+  
+  auc_ci <- as.numeric(
+    ci.auc(
+      roc_obj,
+      conf.level = 0.95,
+      boot.n = 2000
+    )
+  )
+  
+  # ----------------------------------------------------------
+  # SENSITIVITY AT 70% SPECIFICITY
+  # ----------------------------------------------------------
+  
+  ci_70 <- ci.se(
+    roc_obj,
+    specificities = 0.70,
+    conf.level = 0.95,
+    boot.n = 2000
+  )
+  
+  sens_70 <- as.numeric(ci_70[1, 2])
+  lower_70 <- as.numeric(ci_70[1, 1])
+  upper_70 <- as.numeric(ci_70[1, 3])
+  
+  # ----------------------------------------------------------
+  # SENSITIVITY AT 98% SPECIFICITY
+  # ----------------------------------------------------------
+  
+  ci_98 <- ci.se(
+    roc_obj,
+    specificities = 0.98,
+    conf.level = 0.95,
+    boot.n = 2000
+  )
+  
+  sens_98 <- as.numeric(ci_98[1, 2])
+  lower_98 <- as.numeric(ci_98[1, 1])
+  upper_98 <- as.numeric(ci_98[1, 3])
+  
+  # ----------------------------------------------------------
+  # SAVE RESULTS
+  # ----------------------------------------------------------
+  
+  results[[k]] <- data.frame(
+    
+    Signature = k,
+    
+    Markers = paste(
+      selected_features,
+      collapse = " + "
+    ),
+    
+    AUC = auc_value,
+    AUC_lower95 = auc_ci[1],
+    AUC_upper95 = auc_ci[3],
+    
+    Sensitivity_70 = sens_70,
+    Sensitivity_70_lower95 = lower_70,
+    Sensitivity_70_upper95 = upper_70,
+    
+    Sensitivity_98 = sens_98,
+    Sensitivity_98_lower95 = lower_98,
+    Sensitivity_98_upper95 = upper_98
+  )
 }
+
+# ------------------------------------------------------------
+# Stop parallel processing
+# ------------------------------------------------------------
 
 stopCluster(cl)
 registerDoSEQ()
 
-results <- bind_rows(results_list)
+# ------------------------------------------------------------
+# Combine all 13 signatures
+# ------------------------------------------------------------
 
-results_sorted <- results %>%
-  arrange(desc(auc))
+results_13_signatures <- bind_rows(results)
 
-head(results_sorted,10)
+# ------------------------------------------------------------
+# Create manuscript-ready table
+# ------------------------------------------------------------
 
-write.csv(results,"svm_combinations_results-13markers.csv",row.names=FALSE)
-write.csv(results_sorted,"svm_combinations_results_sorted-13markers.csv",row.names=FALSE)
- 
-message("Total combinations evaluated: ", nrow(results))
-```
+results_table <- results_13_signatures %>%
+  mutate(
+    
+    `AUC (95% CI)` = sprintf(
+      "%.2f (%.2f–%.2f)",
+      AUC,
+      AUC_lower95,
+      AUC_upper95
+    ),
+    
+    `Sensitivity at 70% specificity (95% CI)` = sprintf(
+      "%.2f%% (%.2f–%.2f%%)",
+      Sensitivity_70 * 100,
+      Sensitivity_70_lower95 * 100,
+      Sensitivity_70_upper95 * 100
+    ),
+    
+    `Sensitivity at 98% specificity (95% CI)` = sprintf(
+      "%.2f%% (%.2f–%.2f%%)",
+      Sensitivity_98 * 100,
+      Sensitivity_98_lower95 * 100,
+      Sensitivity_98_upper95 * 100
+    )
+  ) %>%
+  select(
+    Signature,
+    Markers,
+    `AUC (95% CI)`,
+    `Sensitivity at 70% specificity (95% CI)`,
+    `Sensitivity at 98% specificity (95% CI)`
+  )
 
-# Make Table 2 
+# ------------------------------------------------------------
+# Display final table
+# ------------------------------------------------------------
 
-```{r}
-df <- read.csv("svm_combinations_results-13markers.csv")
-df <- df %>%
-  arrange(desc(sens_spec98+sens_spec70+auc))
-
-
-df <- df %>%
-  mutate(across(where(is.numeric), ~ round(., 2)))
-
-last_cols <- c("sens_spec98", "sens_spec98_low","sens_spec98_high")
-
-df[last_cols] <- lapply(df[last_cols], function(x) round(x * 100, 2))
-
-last_cols <- c("sens_spec70", "sens_spec70_low","sens_spec70_high")
-
-df[last_cols] <- lapply(df[last_cols], function(x) round(x * 100, 2))
-
-df$newauc <- paste0(df$auc," (",df$auc_low,"-",df$auc_high,")")
-df$newsens <- paste0(df$sens_spec98,"% (",df$sens_spec98_low,"% - ",df$sens_spec98_high,"%)")
-df$newsens2 <- paste0(df$sens_spec70,"% (",df$sens_spec70_low,"% - ",df$sens_spec70_high,"%)")
-newdf <- df%>%select(k,features,newauc,newsens,newsens2)
-write.csv(newdf, "svm_combinations_results_sorted-13markers.csv", row.names = FALSE)
+results_table
+write.csv(results_table, "svm_combinations_results_sorted-13markers.csv", row.names = FALSE)
 ```
 
