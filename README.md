@@ -12,7 +12,8 @@ Zaynab Mousavian1,2*, Firdaus Nabeemeeah3, Mary M. Nellis4, Neel R. Gandhi1,5, R
 7.	Department of Pathology, Emory University School of Medicine, Atlanta, GA, USA.
 8.	Johns Hopkins University Center for TB Research, Baltimore, MD.
 
-**Abstract:**\\
+**Abstract:**
+
 **Background:** Novel blood-based biomarkers for tuberculosis (TB) are needed to develop rapid, point-of-care diagnostics. We sought to use combined plasma metabolomics and high-density cytokine profiling to identify a biomarker signature that can differentiate pulmonary TB (PTB) from patients hospitalized with other respiratory diseases and ambulatory household contacts with TB symptoms. 
 
 **Methods:** We analyzed plasma concentrations of 28 cytokines and 118 metabolites from 391 adults (≥18 years) presenting with respiratory symptoms suggestive of TB, of which 187 had PTB confirmed by Xpert MTB and/or M. tuberculosis sputum culture and 204 were controls in whom PTB was excluded. The control group included 165 hospitalized participants and 39 household contacts of someone with PTB. Random forest models were trained on 70% of the dataset and evaluated on the remaining 30%. 
