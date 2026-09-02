@@ -21,7 +21,9 @@ Zaynab Mousavian1,2*, Firdaus Nabeemeeah3, Mary M. Nellis4, Neel R. Gandhi1,5, R
 **Conclusions:** This plasma biomarker signature meets the optimal WHO target product profile for both non-sputum triage and diagnostic TB tests, highlighting the potential of multiomics signatures to improve TB diagnosis in diverse clinical settings.
 
 * Correspondence: 
+
 Zaynab Mousavian
 zmousa2@emory.edu
+
 Jeffrey M. Collins
 Jeffrey.michael.collins@emory.edu
