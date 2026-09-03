@@ -459,9 +459,6 @@ library(pROC)
 library(dplyr)
 library(doParallel)
 
-# ============================================================
-# 13 sequential signatures
-# ============================================================
 
 features <- c(
   "IFN.gamma", "IL.1beta", "IL.22", "METHIONINE", "OXOPROLINE",
@@ -470,10 +467,6 @@ features <- c(
 )
 
 set.seed(123)
-
-# ------------------------------------------------------------
-# SVM cross-validation settings
-# ------------------------------------------------------------
 
 fitControl <- trainControl(
   method = "repeatedcv",
@@ -488,16 +481,8 @@ svmGrid <- expand.grid(
   C = 2^seq(-5, 10, length.out = 10)
 )
 
-# ------------------------------------------------------------
-# Start parallel processing
-# ------------------------------------------------------------
-
 cl <- makeCluster(max(1, detectCores() - 1))
 registerDoParallel(cl)
-
-# ------------------------------------------------------------
-# Run all 13 signatures
-# ------------------------------------------------------------
 
 results <- list()
 
@@ -505,10 +490,8 @@ for (k in 1:length(features)) {
   
   cat("Running signature", k, "of", length(features), "\n")
   
-  # Features included in this signature
   selected_features <- features[1:k]
   
-  # Identify cytokines and metabolites
   selected_cytokines <- selected_features[
     selected_features %in% colnames(cytokineData.train)
   ]
@@ -516,10 +499,6 @@ for (k in 1:length(features)) {
   selected_metabolites <- selected_features[
     selected_features %in% colnames(metaboData.train)
   ]
-  
-  # ----------------------------------------------------------
-  # TRAINING DATA
-  # ----------------------------------------------------------
   
   data_train <- cbind(
     cytokineData.train[, selected_cytokines, drop = FALSE],
@@ -533,10 +512,6 @@ for (k in 1:length(features)) {
     levels = c("Yes", "No")
   )
   
-  # ----------------------------------------------------------
-  # TEST DATA
-  # ----------------------------------------------------------
-  
   data_test <- cbind(
     cytokineData.test[, selected_cytokines, drop = FALSE],
     metaboData.test[, selected_metabolites, drop = FALSE]
@@ -548,11 +523,7 @@ for (k in 1:length(features)) {
     gsub(" ", "", sampleData.test$TB),
     levels = c("Yes", "No")
   )
-  
-  # ----------------------------------------------------------
-  # TRAIN SVM
-  # ----------------------------------------------------------
-  
+   
   set.seed(123)
   
   svmTune <- train(
@@ -565,22 +536,13 @@ for (k in 1:length(features)) {
     trControl = fitControl
   )
   
-  # ----------------------------------------------------------
-  # PREDICT ON INDEPENDENT TEST SET
-  # ----------------------------------------------------------
-  
   prob_test <- predict(
     svmTune,
     newdata = data_test,
     type = "prob"
   )
   
-  # Probability of TB
   ptb_prob <- prob_test[, "Yes"]
-  
-  # ----------------------------------------------------------
-  # ROC / AUC
-  # ----------------------------------------------------------
   
   roc_obj <- roc(
     response = data_test$Class,
@@ -601,10 +563,6 @@ for (k in 1:length(features)) {
     )
   )
   
-  # ----------------------------------------------------------
-  # SENSITIVITY AT 70% SPECIFICITY
-  # ----------------------------------------------------------
-  
   ci_70 <- ci.se(
     roc_obj,
     specificities = 0.70,
@@ -616,10 +574,6 @@ for (k in 1:length(features)) {
   lower_70 <- as.numeric(ci_70[1, 1])
   upper_70 <- as.numeric(ci_70[1, 3])
   
-  # ----------------------------------------------------------
-  # SENSITIVITY AT 98% SPECIFICITY
-  # ----------------------------------------------------------
-  
   ci_98 <- ci.se(
     roc_obj,
     specificities = 0.98,
@@ -630,10 +584,6 @@ for (k in 1:length(features)) {
   sens_98 <- as.numeric(ci_98[1, 2])
   lower_98 <- as.numeric(ci_98[1, 1])
   upper_98 <- as.numeric(ci_98[1, 3])
-  
-  # ----------------------------------------------------------
-  # SAVE RESULTS
-  # ----------------------------------------------------------
   
   results[[k]] <- data.frame(
     
@@ -658,22 +608,11 @@ for (k in 1:length(features)) {
   )
 }
 
-# ------------------------------------------------------------
-# Stop parallel processing
-# ------------------------------------------------------------
-
 stopCluster(cl)
 registerDoSEQ()
 
-# ------------------------------------------------------------
-# Combine all 13 signatures
-# ------------------------------------------------------------
-
 results_13_signatures <- bind_rows(results)
 
-# ------------------------------------------------------------
-# Create manuscript-ready table
-# ------------------------------------------------------------
 
 results_table <- results_13_signatures %>%
   mutate(
@@ -706,10 +645,6 @@ results_table <- results_13_signatures %>%
     `Sensitivity at 70% specificity (95% CI)`,
     `Sensitivity at 98% specificity (95% CI)`
   )
-
-# ------------------------------------------------------------
-# Display final table
-# ------------------------------------------------------------
 
 results_table
 write.csv(results_table, "svm_combinations_results_sorted-13markers.csv", row.names = FALSE)
